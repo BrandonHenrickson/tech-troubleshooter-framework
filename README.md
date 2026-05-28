@@ -2,7 +2,7 @@
 
 An interactive D3.js tree of Windows and Mac troubleshooting tools and solutions.
 
-Live at: https://[your-username].github.io/[repo-name]/
+Live at: https://brandonhenrickson.github.io/tech-troubleshooter-framework/
 
 ## Adding New Nodes
 
