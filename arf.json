@@ -1,0 +1,1569 @@
+{
+  "name": "Tech Troubleshooter Framework",
+  "description": "An interactive reference for diagnosing and repairing Windows and Mac computers. Built for technicians, power users, and anyone who wants to troubleshoot their own machine. Click any branch to expand it. Click any leaf node (○) to see full details, commands, and step-by-step instructions.",
+  "children": [
+    {
+      "name": "Windows",
+      "description": "Troubleshooting tools, commands, and step-by-step solutions for Windows 10 and Windows 11. Covers system repair, networking, hardware, performance, security, and more.",
+      "children": [
+        {
+          "name": "System Repair",
+          "description": "Core utilities for scanning and repairing corrupted Windows system files and images. The golden rule: always run DISM before SFC.",
+          "children": [
+            {
+              "name": "SFC (System File Checker)",
+              "description": "Scans and repairs protected Windows system files using the Component Store as its source. Run AFTER DISM has completed successfully.",
+              "children": [
+                {
+                  "name": "sfc /scannow",
+                  "description": "Scans ALL protected system files for corruption and replaces any corrupted or missing files with a cached copy from the Component Store. This is the most commonly used SFC command. Must be run as Administrator.",
+                  "command": "sfc /scannow",
+                  "phase": "Phase 4: Final System Repair"
+                },
+                {
+                  "name": "sfc /verifyonly",
+                  "description": "Scans system files but does NOT repair them. Use this when you want to detect problems without making any changes — safe to run on systems with custom configurations.",
+                  "command": "sfc /verifyonly"
+                },
+                {
+                  "name": "SFC in Safe Mode",
+                  "description": "If sfc /scannow fails to fix corruption in normal mode, boot into Safe Mode and run it again. Safe Mode prevents other programs from locking files that SFC needs to replace.",
+                  "command": "sfc /scannow",
+                  "warning": "Boot into Safe Mode first: Hold Shift + Restart → Troubleshoot → Advanced Options → Startup Settings → Restart → F4"
+                }
+              ]
+            },
+            {
+              "name": "DISM",
+              "description": "Deployment Image Servicing and Management. Repairs the Windows Component Store (WinSxS) — the master blueprint SFC uses to repair files. Always run DISM before SFC. Requires internet or an ISO as source.",
+              "children": [
+                {
+                  "name": "CheckHealth",
+                  "description": "Instantly checks if the system has already flagged itself as corrupted. Does NOT run a scan — reads an existing log. Takes under 1 second. Reports: Healthy, Repairable, or Non-Repairable.",
+                  "command": "DISM /Online /Cleanup-Image /CheckHealth",
+                  "phase": "Phase 1: Quick Check"
+                },
+                {
+                  "name": "ScanHealth",
+                  "description": "Thorough scan of the Component Store for corruption not yet flagged. Does NOT fix anything — only detects. Takes 5–10 minutes. Look for the message: 'The component store is repairable.'",
+                  "command": "DISM /Online /Cleanup-Image /ScanHealth",
+                  "phase": "Phase 1: Deep Scan"
+                },
+                {
+                  "name": "RestoreHealth",
+                  "description": "The main repair command. Downloads healthy replacement files from Windows Update and repairs the Component Store. The progress bar may appear stuck at 20% or 40% for a long time — this is normal. Do not cancel.",
+                  "command": "DISM /Online /Cleanup-Image /RestoreHealth",
+                  "phase": "Phase 2: The Big Fix",
+                  "warning": "If this fails with Error 0x800f081f — use 'RestoreHealth with ISO'"
+                },
+                {
+                  "name": "RestoreHealth with ISO",
+                  "description": "Use when RestoreHealth fails because Windows Update is unavailable or corrupted. Provide a local Windows ISO as source. Steps: 1) Download ISO via Media Creation Tool. 2) Double-click ISO to mount it (note drive letter e.g. E:). 3) Find index number with Get-WimInfo. 4) Run command below. /LimitAccess forces DISM to use only the ISO.",
+                  "command": "DISM /Online /Cleanup-Image /RestoreHealth /Source:wim:E:\\sources\\install.wim:6 /LimitAccess",
+                  "errorCode": "0x800f081f / 0x800f0906",
+                  "phase": "Phase 4: DISM Error Handling"
+                },
+                {
+                  "name": "AnalyzeComponentStore",
+                  "description": "Checks the size of the WinSxS folder and reports whether component cleanup is recommended. Use when low on disk space. Look for: 'Component Store Cleanup Recommended: Yes'",
+                  "command": "DISM /Online /Cleanup-Image /AnalyzeComponentStore",
+                  "phase": "Phase 3: Disk Hygiene"
+                },
+                {
+                  "name": "StartComponentCleanup",
+                  "description": "Deletes obsolete and superseded Windows update files to reclaim disk space and reduce corruption risk. Only run if AnalyzeComponentStore recommended cleanup.",
+                  "command": "DISM /Online /Cleanup-Image /StartComponentCleanup"
+                },
+                {
+                  "name": "ResetBase",
+                  "description": "Extreme cleanup — permanently makes all currently installed updates the new baseline. Saves the most disk space but you CANNOT uninstall existing updates afterward. Use only when necessary.",
+                  "command": "DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase",
+                  "warning": "IRREVERSIBLE: Existing updates cannot be uninstalled after this."
+                },
+                {
+                  "name": "RevertPendingActions",
+                  "description": "Clears the 'pending.xml' file that queues update actions. Use when Windows is stuck in a boot loop saying 'Getting Windows Ready' or endlessly rebooting after an update.",
+                  "command": "DISM /Online /Cleanup-Image /RevertPendingActions",
+                  "warning": "If Windows won't boot, run this from the Recovery Environment."
+                },
+                {
+                  "name": "Remove Stuck Update",
+                  "description": "Removes a specific Windows update package by name when it can't be uninstalled via Settings. Step 1: List all packages to find the name. Step 2: Copy the exact package name. Step 3: Remove it.",
+                  "command": "DISM /Online /Get-Packages /Format:Table\nDISM /Online /Remove-Package /PackageName:[PackageName]"
+                },
+                {
+                  "name": "Get-WimInfo",
+                  "description": "Lists all Windows editions inside a WIM or ESD file with their index numbers. Use to find the correct index (e.g. Index 6 = Windows 11 Pro) before running RestoreHealth with a local ISO source.",
+                  "command": "DISM /Get-WimInfo /WimFile:E:\\sources\\install.wim"
+                },
+                {
+                  "name": "Convert ESD to WIM",
+                  "description": "Some Windows installation media uses install.esd instead of install.wim. DISM works better with WIM format. Convert using export-image. Prerequisites: Copy install.esd to C:\\ESD first, open Admin CMD, cd C:\\ESD",
+                  "command": "cd C:\\ESD\ndism /Get-WimInfo /WimFile:install.esd\ndism /export-image /SourceImageFile:install.esd /SourceIndex:1 /DestinationImageFile:install.wim /Compress:max /CheckIntegrity",
+                  "warning": "Replace SourceIndex:1 with your edition's actual index from Get-WimInfo."
+                },
+                {
+                  "name": "DISM Error Codes",
+                  "description": "Common DISM failure codes — all mean DISM cannot find or download source files.",
+                  "children": [
+                    {
+                      "name": "Error 0x800f081f",
+                      "description": "Source files could not be found. DISM cannot locate repair files on Windows Update. Fix: Use RestoreHealth with a local ISO, or apply the Group Policy fix (gpedit.msc → Computer Configuration → Administrative Templates → System → 'Specify settings for optional component installation' → Enable → check 'Download repair content directly from Windows Update').",
+                      "errorCode": "0x800f081f"
+                    },
+                    {
+                      "name": "Error 0x800f0906",
+                      "description": "Source files could not be downloaded. Usually caused by a network block, firewall, or WSUS (corporate update server) interference. Fix: Apply the Group Policy fix or use ISO as source.",
+                      "errorCode": "0x800f0906"
+                    },
+                    {
+                      "name": "Error 0x800f0907",
+                      "description": "DISM is blocked by Group Policy. A policy prevents DISM from downloading repair content. Open gpedit.msc → Computer Configuration → Administrative Templates → System → 'Specify settings for optional component installation and component repair' → Set to Enabled → Check 'Download repair content directly from Windows Update instead of WSUS'.",
+                      "errorCode": "0x800f0907"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "PowerShell Method",
+              "description": "Modern PowerShell alternative to CMD-based DISM. Repair-WindowsImage returns structured objects enabling scripted automation. Open PowerShell as Administrator before running any of these.",
+              "children": [
+                {
+                  "name": "Check Health (PS)",
+                  "command": "Repair-WindowsImage -Online -CheckHealth",
+                  "description": "PowerShell equivalent of DISM /CheckHealth. Returns ImageHealthState: Healthy or Repairable."
+                },
+                {
+                  "name": "Scan Health (PS)",
+                  "command": "Repair-WindowsImage -Online -ScanHealth",
+                  "description": "PowerShell equivalent of DISM /ScanHealth. Shows a cyan progress bar which is often more accurate than the CMD blinking cursor."
+                },
+                {
+                  "name": "Restore Health (PS)",
+                  "command": "Repair-WindowsImage -Online -RestoreHealth",
+                  "description": "PowerShell equivalent of DISM /RestoreHealth."
+                },
+                {
+                  "name": "Mount ISO (PS)",
+                  "command": "$MountInfo = Mount-DiskImage -ImagePath \"C:\\ISOs\\Windows11.iso\" -PassThru\n$DriveLetter = ($MountInfo | Get-Volume).DriveLetter\nWrite-Host \"Mounted on: $DriveLetter\"",
+                  "description": "Mounts a Windows ISO automatically and stores the drive letter in a variable — no manual browsing needed."
+                },
+                {
+                  "name": "Restore with ISO (PS)",
+                  "command": "Repair-WindowsImage -Online -RestoreHealth -Source \"WIM:$($DriveLetter):\\sources\\install.wim:6\" -LimitAccess",
+                  "description": "Runs RestoreHealth using the mounted ISO. -LimitAccess prevents Windows Update use. Replace 6 with your index number.",
+                  "warning": "Do NOT put a space after WIM: — 'WIM: E:\\...' will fail."
+                },
+                {
+                  "name": "All-In-One Repair Script",
+                  "command": "$Scan = Repair-WindowsImage -Online -ScanHealth\nif ($Scan.ImageHealthState -eq \"Healthy\") {\n  Write-Host \"Healthy. Running SFC.\" -ForegroundColor Green\n} else {\n  Write-Host \"Corruption found! Restoring...\" -ForegroundColor Red\n  Repair-WindowsImage -Online -RestoreHealth\n}\nsfc /scannow",
+                  "description": "Save as Repair-PC.ps1, run as Admin. Auto-detects corruption, restores if needed, then always runs SFC at the end."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Blue Screen (BSOD)",
+          "description": "The Blue Screen of Death indicates a critical system error that forces Windows to stop. Always record the STOP code and the file name shown on the blue screen before troubleshooting.",
+          "children": [
+            {
+              "name": "Read the BSOD Code",
+              "description": "When a BSOD occurs, Windows shows a STOP code (e.g. CRITICAL_PROCESS_DIED) and sometimes a filename (e.g. ntfs.sys). Write both down. In Windows 11, the QR code on the BSOD links to Microsoft's support page for that exact error.",
+              "steps": [
+                "Photograph or write down the STOP code and file name",
+                "Note what you were doing when it crashed",
+                "Check Event Viewer: eventvwr.msc → Windows Logs → System"
+              ]
+            },
+            {
+              "name": "Check Event Viewer",
+              "description": "Event Viewer records detailed crash logs. Navigate to Windows Logs → System and look for Critical or Error level events around the time of the crash.",
+              "command": "eventvwr.msc",
+              "steps": [
+                "Open eventvwr.msc as Admin",
+                "Navigate to Windows Logs → System",
+                "Click Filter Current Log → Level: Critical, Error",
+                "Find events at the time of the crash"
+              ]
+            },
+            {
+              "name": "Windows Memory Diagnostic",
+              "description": "Faulty RAM is a very common cause of BSODs. Windows has a built-in memory test that runs on restart and checks for RAM errors.",
+              "command": "mdsched.exe",
+              "steps": [
+                "Run mdsched.exe as Admin",
+                "Choose 'Restart now and check for problems'",
+                "After restart: check results in Event Viewer → Windows Logs → System → search 'MemoryDiagnostics-Results'"
+              ]
+            },
+            {
+              "name": "Update or Roll Back Drivers",
+              "description": "Driver conflicts are the #1 cause of BSODs. If the crash started after a driver update, roll it back. If drivers are old, update them.",
+              "command": "devmgmt.msc",
+              "steps": [
+                "Open devmgmt.msc (Device Manager)",
+                "Look for any devices with a yellow ! warning icon",
+                "Right-click problematic device → Properties → Driver tab",
+                "Click 'Roll Back Driver' if available, otherwise 'Update Driver'",
+                "For graphics/GPU: download driver directly from NVIDIA/AMD/Intel website"
+              ]
+            },
+            {
+              "name": "Check for Overheating",
+              "description": "Thermal throttling and overheating can cause random BSODs. Use HWMonitor or Core Temp to check CPU/GPU temperatures. CPU should be under 90°C under load; GPU under 85°C.",
+              "steps": [
+                "Download HWMonitor or Core Temp (free tools)",
+                "Run a stress test (Prime95 for CPU) while monitoring temps",
+                "If temps exceed safe range: clean dust from vents/fans, replace thermal paste",
+                "Laptops: ensure vents are not blocked, use on hard surfaces"
+              ]
+            },
+            {
+              "name": "Run SFC and DISM",
+              "description": "Corrupted system files are a common cause of BSODs. Run the standard system repair sequence.",
+              "command": "DISM /Online /Cleanup-Image /RestoreHealth\nsfc /scannow",
+              "phase": "System File Repair"
+            },
+            {
+              "name": "Analyze Minidump Files",
+              "description": "Windows saves small crash dump files (minidumps) when a BSOD occurs. Analyze them with WinDbg to find the exact driver or module that caused the crash.",
+              "steps": [
+                "Open File Explorer → C:\\Windows\\Minidump",
+                "Download WinDbg from Microsoft Store",
+                "Open WinDbg → File → Open Crash Dump → select .dmp file",
+                "Type: !analyze -v in the command window",
+                "Look for the 'Probably caused by:' line"
+              ]
+            },
+            {
+              "name": "Common BSOD Codes",
+              "description": "Reference for the most common BSOD stop codes and their meanings.",
+              "children": [
+                {
+                  "name": "CRITICAL_PROCESS_DIED",
+                  "description": "A critical Windows process (like winlogon.exe or csrss.exe) unexpectedly terminated. Causes: corrupted system files, faulty drivers, malware. Fix: Run SFC/DISM, scan for malware, check for driver updates.",
+                  "errorCode": "0x000000EF"
+                },
+                {
+                  "name": "SYSTEM_THREAD_EXCEPTION_NOT_HANDLED",
+                  "description": "A kernel-mode driver or component threw an exception it couldn't handle. The filename shown on the BSOD identifies the driver. Fix: Update, roll back, or uninstall the driver shown.",
+                  "errorCode": "0x0000007E"
+                },
+                {
+                  "name": "MEMORY_MANAGEMENT",
+                  "description": "Serious error in Windows memory management. Often caused by faulty RAM, corrupted virtual memory settings, or corrupt system files. Fix: Run mdsched.exe (Memory Diagnostic), then SFC/DISM.",
+                  "errorCode": "0x0000001A"
+                },
+                {
+                  "name": "PAGE_FAULT_IN_NONPAGED_AREA",
+                  "description": "System tried to access memory that doesn't exist or was paged out. Causes: bad RAM, corrupted drivers, antivirus conflicts. Fix: Run Memory Diagnostic, update drivers, disable antivirus temporarily.",
+                  "errorCode": "0x00000050"
+                },
+                {
+                  "name": "DRIVER_IRQL_NOT_LESS_OR_EQUAL",
+                  "description": "A driver accessed a memory address at an incorrect IRQL level. Almost always a driver issue. Note the driver filename shown on the BSOD and update or reinstall that specific driver.",
+                  "errorCode": "0x000000D1"
+                },
+                {
+                  "name": "IRQL_NOT_LESS_OR_EQUAL",
+                  "description": "Similar to DRIVER_IRQL — kernel-mode process tried to access a pageable memory address at too high an IRQL. Fix: Update all drivers, especially network and graphics drivers.",
+                  "errorCode": "0x0000000A"
+                },
+                {
+                  "name": "KERNEL_DATA_INPAGE_ERROR",
+                  "description": "Windows couldn't read data from virtual memory (page file). Indicates a bad hard drive, RAM, or corrupted page file. Fix: Run chkdsk C: /f /r, then Memory Diagnostic.",
+                  "errorCode": "0x0000007A"
+                },
+                {
+                  "name": "NTFS_FILE_SYSTEM",
+                  "description": "Error in the NTFS file system driver (ntfs.sys). Usually indicates a failing hard drive or corrupted file system. Fix: Run chkdsk C: /f /r from Recovery, then SFC/DISM.",
+                  "errorCode": "0x00000024"
+                },
+                {
+                  "name": "WHEA_UNCORRECTABLE_ERROR",
+                  "description": "Hardware error detected by Windows Hardware Error Architecture. Causes: overclocking instability, failing CPU, bad RAM, overheating. Fix: Reset BIOS to default, reseat RAM, check CPU temps, run Memory Diagnostic.",
+                  "errorCode": "0x00000124"
+                }
+              ]
+            },
+            {
+              "name": "Safe Mode Troubleshooting",
+              "description": "Boot into Safe Mode to diagnose BSODs. Safe Mode loads only essential drivers — if the BSOD stops in Safe Mode, a third-party driver or startup program is the cause.",
+              "command": "msconfig",
+              "steps": [
+                "Hold Shift + click Restart in Start menu",
+                "Troubleshoot → Advanced Options → Startup Settings → Restart",
+                "Press F4 for Safe Mode or F5 for Safe Mode with Networking",
+                "In Safe Mode: uninstall recent drivers or software",
+                "If stable in Safe Mode: run msconfig → Selective Startup to isolate the cause"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Network Troubleshooting",
+          "description": "Step-by-step diagnosis and fixes for network connectivity issues — from basic no-internet errors to advanced DNS and TCP/IP problems.",
+          "children": [
+            {
+              "name": "No Internet Connection",
+              "description": "Start here for any internet connectivity issue. Work through these steps in order before using advanced commands.",
+              "command": "ipconfig /release\nipconfig /renew\nipconfig /flushdns",
+              "steps": [
+                "Restart router and modem (unplug 30 seconds, plug back in)",
+                "Restart the computer",
+                "Try a different browser or device to isolate the issue",
+                "Check if other devices on the same network have internet",
+                "Right-click the network icon in taskbar → Troubleshoot Problems",
+                "Run: ipconfig /release then ipconfig /renew",
+                "Run: ipconfig /flushdns"
+              ]
+            },
+            {
+              "name": "Wi-Fi Keeps Disconnecting",
+              "description": "Wi-Fi that drops intermittently is often caused by power management settings, outdated Wi-Fi drivers, or router channel congestion.",
+              "command": "netsh winsock reset\nnetsh int ip reset\nipconfig /flushdns",
+              "steps": [
+                "Update Wi-Fi adapter driver via Device Manager",
+                "Disable Wi-Fi adapter power saving: Device Manager → Wi-Fi adapter → Properties → Power Management → uncheck 'Allow computer to turn off this device to save power'",
+                "Change router channel from 2.4GHz to 5GHz (or vice versa)",
+                "Forget and reconnect to the network",
+                "Reset network settings with netsh commands below"
+              ],
+              "warning": "Restart the computer after running netsh reset commands."
+            },
+            {
+              "name": "ipconfig Commands",
+              "description": "IP Configuration commands — the foundation of network troubleshooting in Windows.",
+              "children": [
+                {
+                  "name": "ipconfig /all",
+                  "command": "ipconfig /all",
+                  "description": "Shows detailed info for ALL network adapters: IP address, MAC address, DHCP server, DNS servers, gateway, lease times."
+                },
+                {
+                  "name": "ipconfig /release + /renew",
+                  "command": "ipconfig /release\nipconfig /renew",
+                  "description": "Releases the current DHCP IP address and requests a new one. The classic fix for 'can't get an IP address' problems."
+                },
+                {
+                  "name": "ipconfig /flushdns",
+                  "command": "ipconfig /flushdns",
+                  "description": "Clears the DNS resolver cache. Use when websites load with old/wrong content or when DNS changes aren't taking effect."
+                }
+              ]
+            },
+            {
+              "name": "netsh Commands",
+              "description": "Network Shell — powerful utility for resetting deep network stack components. Use when basic ipconfig fixes don't work.",
+              "children": [
+                {
+                  "name": "Winsock Reset",
+                  "command": "netsh winsock reset",
+                  "description": "Resets the Winsock Catalog — Windows's database of network settings used by all applications. Fixes a wide range of connectivity issues. Think of it as a factory reset for your network stack.",
+                  "warning": "Must restart the computer after this command."
+                },
+                {
+                  "name": "TCP/IP Stack Reset",
+                  "command": "netsh int ip reset",
+                  "description": "Resets the TCP/IP protocol stack to factory defaults. Fixes IP address conflicts and TCP/IP configuration corruption.",
+                  "warning": "Must restart the computer after this command."
+                },
+                {
+                  "name": "Full Network Reset (All-in-One)",
+                  "command": "netsh winsock reset\nnetsh int ip reset\nipconfig /release\nipconfig /renew\nipconfig /flushdns",
+                  "description": "Run all five commands in sequence for a complete network stack reset. This resolves the majority of software-based network issues.",
+                  "warning": "Restart the computer after running all five commands."
+                }
+              ]
+            },
+            {
+              "name": "DNS Troubleshooting",
+              "description": "DNS issues cause websites to fail to load even when the internet connection itself is working.",
+              "children": [
+                {
+                  "name": "nslookup",
+                  "command": "nslookup google.com",
+                  "description": "Queries your DNS server to find the IP address for a domain. If this fails, DNS is broken. If it succeeds, the problem is elsewhere."
+                },
+                {
+                  "name": "Change DNS to Google",
+                  "command": "netsh interface ip set dns \"Wi-Fi\" static 8.8.8.8\nnetsh interface ip add dns \"Wi-Fi\" 8.8.4.4 index=2",
+                  "description": "Changes your DNS servers to Google's public DNS (8.8.8.8 and 8.8.4.4). Useful when your ISP's DNS is slow or broken. Replace 'Wi-Fi' with your actual adapter name from ipconfig /all."
+                },
+                {
+                  "name": "Change DNS to Cloudflare",
+                  "command": "netsh interface ip set dns \"Wi-Fi\" static 1.1.1.1\nnetsh interface ip add dns \"Wi-Fi\" 1.0.0.1 index=2",
+                  "description": "Changes DNS to Cloudflare (1.1.1.1) — the fastest public DNS resolver. Replace 'Wi-Fi' with your adapter name from ipconfig /all."
+                }
+              ]
+            },
+            {
+              "name": "Ping & Tracert",
+              "description": "Basic connectivity testing tools to determine where a network failure is occurring.",
+              "children": [
+                {
+                  "name": "ping",
+                  "command": "ping google.com\nping 8.8.8.8",
+                  "description": "Tests basic connectivity. If 'ping google.com' fails but 'ping 8.8.8.8' works, the problem is DNS. If both fail, the internet connection itself is broken."
+                },
+                {
+                  "name": "tracert",
+                  "command": "tracert google.com",
+                  "description": "Traces the path packets take to reach a destination, showing every router hop with response times. Identify WHERE on the path a connection is failing — timeout (*) at a specific hop indicates that router is the issue."
+                }
+              ]
+            },
+            {
+              "name": "netstat",
+              "command": "netstat -an",
+              "description": "Displays all active TCP connections and listening ports in numerical format. Use to identify which programs are making connections and spot suspicious open ports."
+            }
+          ]
+        },
+        {
+          "name": "Audio Issues",
+          "description": "Troubleshooting no sound, distorted audio, microphone problems, and audio driver issues in Windows.",
+          "children": [
+            {
+              "name": "No Sound (Basic Checks)",
+              "description": "Work through these basic checks before advanced troubleshooting.",
+              "steps": [
+                "Check volume mixer: right-click speaker icon → Open Volume Mixer",
+                "Check that correct output device is selected: Settings → Sound → Output",
+                "Right-click speaker icon → Troubleshoot Sound Problems",
+                "Check if audio works with headphones (tests if speakers are the issue)",
+                "Restart Windows Audio service (see below)"
+              ]
+            },
+            {
+              "name": "Restart Audio Service",
+              "command": "net stop audiosrv\nnet start audiosrv",
+              "description": "Restarts the Windows Audio service. Fixes many cases of sudden audio loss without requiring a full restart."
+            },
+            {
+              "name": "Reinstall Audio Driver",
+              "description": "Corrupted or incompatible audio drivers are a common cause of no sound or distorted audio in Windows.",
+              "command": "devmgmt.msc",
+              "steps": [
+                "Open devmgmt.msc",
+                "Expand 'Sound, video and game controllers'",
+                "Right-click your audio device → Uninstall device → check 'Delete the driver software'",
+                "Restart the computer — Windows will auto-reinstall the driver",
+                "If the auto-installed driver doesn't work: download from your PC manufacturer's website"
+              ]
+            },
+            {
+              "name": "Audio Keeps Cutting Out",
+              "description": "Intermittent audio dropouts are often caused by power management settings or driver issues.",
+              "steps": [
+                "Device Manager → Audio device → Properties → Power Management → uncheck 'Allow computer to turn off this device'",
+                "Settings → Sound → scroll down → 'More sound settings' → Playback tab → right-click device → Properties → Advanced → uncheck 'Allow applications to take exclusive control'",
+                "Update audio driver from manufacturer website"
+              ]
+            },
+            {
+              "name": "Microphone Not Working",
+              "description": "Microphone detection failures — check privacy settings first.",
+              "command": "ms-settings:privacy-microphone",
+              "steps": [
+                "Settings → Privacy & Security → Microphone → ensure app access is On",
+                "Right-click speaker icon → Sound Settings → scroll to Input → select correct microphone",
+                "Check if mic is muted in hardware (physical mute button or switch)",
+                "Device Manager → Audio → right-click microphone device → Enable Device",
+                "Run: ms-settings:privacy-microphone in Run dialog to check permissions"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Display & Graphics",
+          "description": "Fixing screen flickering, black screens, resolution problems, GPU driver issues, and monitor detection failures.",
+          "children": [
+            {
+              "name": "Screen Flickering",
+              "description": "Screen flickering in Windows is usually caused by incompatible display drivers or a problematic application.",
+              "command": "devmgmt.msc",
+              "steps": [
+                "Open Task Manager (Ctrl+Shift+Esc) — if the taskbar flickers but Task Manager doesn't: the issue is a program. If everything flickers: it's a driver.",
+                "For driver issue: update or roll back display driver in Device Manager",
+                "For application issue: uninstall recently installed apps",
+                "Check refresh rate: Settings → Display → Advanced display → choose highest supported rate",
+                "If using dual monitors: check if both cables are fully seated"
+              ]
+            },
+            {
+              "name": "Black Screen on Boot",
+              "description": "A black screen after boot usually means Windows loaded but the display driver or Explorer failed to initialize.",
+              "command": "powercfg /h off",
+              "steps": [
+                "Press Ctrl+Alt+Del — if that works, open Task Manager",
+                "In Task Manager → File → Run new task → type explorer.exe",
+                "If above doesn't work: boot into Safe Mode and roll back display driver",
+                "Disable Fast Startup: Settings → Power → Additional power settings → Choose what power buttons do → uncheck 'Turn on fast startup'",
+                "If persistent: boot from USB → Repair → SFC/DISM"
+              ]
+            },
+            {
+              "name": "GPU Driver Issues",
+              "description": "Updating, rolling back, or clean-installing GPU drivers.",
+              "steps": [
+                "Download DDU (Display Driver Uninstaller) — safest driver removal tool",
+                "Boot into Safe Mode",
+                "Run DDU → Clean and Restart",
+                "Download the latest GPU driver from NVIDIA.com, AMD.com, or Intel.com",
+                "Install the fresh driver after DDU cleanup"
+              ]
+            },
+            {
+              "name": "Monitor Not Detected",
+              "description": "Second monitor not showing up in display settings.",
+              "command": "ms-settings:display",
+              "steps": [
+                "Settings → Display → scroll down → 'Detect' button",
+                "Try a different cable (HDMI, DisplayPort, USB-C)",
+                "Try the monitor on a different port on the GPU",
+                "Update GPU driver",
+                "Right-click desktop → Display settings → confirm 'Multiple displays' setting"
+              ]
+            },
+            {
+              "name": "Resolution Won't Change",
+              "description": "Stuck at wrong resolution, usually caused by a missing or generic display driver.",
+              "steps": [
+                "Right-click desktop → Display settings → Display resolution → select correct resolution",
+                "If correct resolution isn't listed: GPU driver is not installed properly",
+                "Device Manager → Display adapters → check if it says 'Microsoft Basic Display Adapter'",
+                "If Basic Display Adapter: reinstall GPU driver from manufacturer"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Printer Issues",
+          "description": "Fixing printers that won't print, aren't detected, are offline, or have stuck print queues.",
+          "children": [
+            {
+              "name": "Printer Offline Fix",
+              "description": "Printer shows as Offline even when it's on and connected.",
+              "steps": [
+                "Settings → Bluetooth & devices → Printers & scanners → select printer → Open print queue",
+                "Printer menu → uncheck 'Use Printer Offline'",
+                "Turn printer off, wait 30 seconds, turn back on",
+                "If wireless: reconnect printer to Wi-Fi",
+                "Delete and re-add the printer"
+              ]
+            },
+            {
+              "name": "Clear Print Queue (Stuck Jobs)",
+              "description": "Stuck print jobs block all new printing. Clear the queue manually by stopping the Print Spooler service.",
+              "command": "net stop spooler\ndel /Q /F /S \"%systemroot%\\System32\\spool\\PRINTERS\\*.*\"\nnet start spooler",
+              "steps": [
+                "Open Admin CMD",
+                "Run: net stop spooler",
+                "Run: del /Q /F /S \"%systemroot%\\System32\\spool\\PRINTERS\\*.*\"",
+                "Run: net start spooler",
+                "Return to printer and retry"
+              ]
+            },
+            {
+              "name": "Reinstall Printer Driver",
+              "description": "Corrupted printer drivers cause most persistent printer failures.",
+              "command": "devmgmt.msc",
+              "steps": [
+                "Settings → Bluetooth & devices → Printers & scanners → select printer → Remove device",
+                "devmgmt.msc → View → Show hidden devices → Printers → uninstall old drivers",
+                "Download fresh driver from printer manufacturer's website",
+                "Install driver, then re-add the printer"
+              ]
+            },
+            {
+              "name": "Print Spooler Service",
+              "description": "The Print Spooler manages all print jobs. If it's stopped or crashed, no printing is possible.",
+              "command": "services.msc",
+              "steps": [
+                "Open services.msc",
+                "Find 'Print Spooler' in the list",
+                "Right-click → Restart",
+                "If Startup Type is not 'Automatic', double-click → change to Automatic → click Start"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Performance (Slow PC)",
+          "description": "Diagnosing and fixing a slow Windows computer — from startup times to high CPU/RAM/disk usage.",
+          "children": [
+            {
+              "name": "Check Resource Usage",
+              "description": "Identify what's consuming CPU, RAM, or Disk.",
+              "command": "taskmgr",
+              "steps": [
+                "Open Task Manager → Processes tab",
+                "Click CPU, Memory, or Disk column headers to sort by usage",
+                "Identify processes using >50% of any resource",
+                "Right-click → Search online to identify unfamiliar processes",
+                "For persistent monitoring: use Resource Monitor (perfmon /res)"
+              ]
+            },
+            {
+              "name": "Disable Startup Programs",
+              "description": "Too many startup programs slow boot time. Disable non-essential ones.",
+              "command": "taskmgr",
+              "steps": [
+                "Task Manager → Startup apps tab",
+                "Right-click programs you don't need immediately at boot → Disable",
+                "Focus on disabling: update helpers, manufacturer utilities, chat apps",
+                "Do NOT disable: antivirus, audio drivers, GPU software"
+              ]
+            },
+            {
+              "name": "PC Performance Score",
+              "command": "get-ciminstance win32_winsat",
+              "description": "Runs the Windows System Assessment Tool and returns your PC's performance score across CPU, memory, disk, and graphics subsystems. Run in PowerShell as Administrator."
+            },
+            {
+              "name": "Reliability Monitor",
+              "command": "perfmon /rel",
+              "description": "Opens Windows Reliability Monitor — a graphical timeline of system stability events, crashes, errors, and warnings. Excellent for identifying what caused a system to become unstable."
+            },
+            {
+              "name": "Disk Cleanup",
+              "command": "cleanmgr /verylowdisk",
+              "description": "Automated disk cleanup that removes common temporary files without user interaction. For more control: run cleanmgr and manually select file categories including 'System files'."
+            },
+            {
+              "name": "Adjust Visual Effects",
+              "description": "Windows visual effects consume RAM and GPU resources. Disabling them speeds up older systems significantly.",
+              "command": "sysdm.cpl",
+              "steps": [
+                "Open sysdm.cpl → Advanced tab → Performance Settings",
+                "Select 'Adjust for best performance' to disable all effects",
+                "Or: select 'Custom' and keep only 'Show thumbnails instead of icons'",
+                "Click Apply and OK"
+              ]
+            },
+            {
+              "name": "Check Disk Health",
+              "command": "chkdsk C: /f /r",
+              "description": "A failing or fragmented hard drive causes extreme slowness. Run chkdsk to find and fix disk errors. Also check drive health in CrystalDiskInfo (free tool) — look for 'Good' status. Caution/Bad means the drive needs to be replaced immediately.",
+              "warning": "Back up important data before running chkdsk /r — it scans bad sectors."
+            }
+          ]
+        },
+        {
+          "name": "Disk Management",
+          "description": "Tools for checking disk health, repairing file system errors, and managing drive space in Windows.",
+          "children": [
+            {
+              "name": "chkdsk",
+              "description": "Check Disk scans and repairs file system errors and bad sectors.",
+              "children": [
+                {
+                  "name": "chkdsk /f (Quick)",
+                  "command": "chkdsk C: /f",
+                  "description": "Scans C: drive and fixes file system errors. If the drive is in use, Windows will schedule it for the next restart."
+                },
+                {
+                  "name": "chkdsk /f /r /x (Full)",
+                  "command": "chkdsk C: /f /r /x",
+                  "description": "Full scan: fixes errors (/f), locates bad sectors and recovers readable data (/r), forces dismount before check (/x).",
+                  "warning": "Back up data before running. Never cancel mid-scan."
+                }
+              ]
+            },
+            {
+              "name": "Disk Cleanup (cleanmgr)",
+              "description": "Windows built-in temp file removal utility.",
+              "children": [
+                {
+                  "name": "cleanmgr (GUI)",
+                  "command": "cleanmgr",
+                  "description": "Launches the graphical Disk Cleanup tool."
+                },
+                {
+                  "name": "cleanmgr /verylowdisk",
+                  "command": "cleanmgr /verylowdisk",
+                  "description": "Automated cleanup of common temp files with no UI interaction."
+                }
+              ]
+            },
+            {
+              "name": "Export Drivers Before Reinstall",
+              "command": "DISM /Online /Export-Driver /Destination:C:\\DriversBackup",
+              "description": "Exports all currently installed drivers to a folder before reinstalling Windows so you don't have to hunt for them afterward."
+            }
+          ]
+        },
+        {
+          "name": "Windows Updates",
+          "description": "Fixing Windows Update failures — from corrupt downloads to stuck installs and specific KB error codes.",
+          "children": [
+            {
+              "name": "Standard Repair Protocol",
+              "command": "sfc /scannow\nDism /Online /Cleanup-Image /ScanHealth\nDism /Online /Cleanup-Image /RestoreHealth",
+              "description": "Run in Admin CMD. Wait for each command to complete before starting the next. Then restart. This fixes the majority of update failures."
+            },
+            {
+              "name": "Reset Windows Update Components",
+              "description": "Manually resets all Windows Update services and caches — the nuclear option for stubborn update failures.",
+              "command": "net stop wuauserv\nnet stop cryptSvc\nnet stop bits\nnet stop msiserver\nren C:\\Windows\\SoftwareDistribution SoftwareDistribution.old\nren C:\\Windows\\System32\\catroot2 catroot2.old\nnet start wuauserv\nnet start cryptSvc\nnet start bits\nnet start msiserver",
+              "warning": "Run each command individually in Admin CMD in the order shown."
+            },
+            {
+              "name": "Configure Update Services",
+              "command": "services.msc",
+              "description": "Ensure these services are running and set to Automatic: App Readiness, Background Intelligent Transfer Service (BITS), Windows Update. Open services.msc, double-click each, set Startup Type to Automatic, click Start."
+            },
+            {
+              "name": "winver (Check Version)",
+              "command": "winver",
+              "description": "Displays your Windows version (e.g. 23H2, 24H2) and build number. Needed to download the correct manual patch from the Update Catalog."
+            },
+            {
+              "name": "Manual Patch via Update Catalog",
+              "description": "Download and install a specific KB update manually when Windows Update fails to deliver it automatically.",
+              "steps": [
+                "Run winver to note your Windows version",
+                "Settings → System → About → note System type (64-bit)",
+                "Visit: catalog.update.microsoft.com",
+                "Search for the KB number (e.g. KB5079473)",
+                "Download the .msu file matching your version and architecture",
+                "Run the .msu file and restart"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Boot & Startup Issues",
+          "description": "Fixing computers that fail to boot, get stuck in loops, show the SrtTrail.txt error, or display boot configuration errors.",
+          "children": [
+            {
+              "name": "SrtTrail.txt Error",
+              "description": "This error appears when Automatic Repair fails. Boot from a Windows USB → Repair → Troubleshoot → Advanced Options → Command Prompt.",
+              "children": [
+                {
+                  "name": "Check Disk from Recovery",
+                  "command": "chkdsk C: /f /r",
+                  "description": "Run from Recovery CMD after booting from Windows USB. Finds and repairs disk errors causing boot failures.",
+                  "warning": "Do NOT cancel mid-scan. Replace C: with your actual Windows drive letter."
+                },
+                {
+                  "name": "bootrec /fixmbr",
+                  "command": "bootrec /fixmbr",
+                  "description": "Repairs the Master Boot Record. Run from Recovery CMD."
+                },
+                {
+                  "name": "bootrec /fixboot",
+                  "command": "bootrec /fixboot",
+                  "description": "Writes a new boot sector to the system partition. Run from Recovery CMD."
+                },
+                {
+                  "name": "bootrec /rebuildbcd",
+                  "command": "bootrec /rebuildbcd",
+                  "description": "Rebuilds the Boot Configuration Data store. The most powerful bootrec command — fixes most 'Windows failed to start' errors. Run from Recovery CMD."
+                }
+              ]
+            },
+            {
+              "name": "Offline DISM Repair",
+              "command": "DISM /Image:D:\\ /Cleanup-Image /RestoreHealth /Source:wim:F:\\sources\\install.wim:1 /LimitAccess",
+              "description": "For when Windows won't boot at all. Run from USB Recovery CMD. CRITICAL: Use /Image: not /Online. Your broken Windows may be on D: not C: in Recovery — type 'dir c:' and 'dir d:' to find which has the Windows folder.",
+              "warning": "Replace D: with your actual broken Windows drive, F: with your ISO drive."
+            },
+            {
+              "name": "Offline SFC",
+              "command": "sfc /scannow /offbootdir=D:\\ /offwindir=D:\\Windows",
+              "description": "Standard sfc /scannow fails when run offline. Use this version with explicit path flags from Recovery CMD."
+            },
+            {
+              "name": "Create Local Account (During Setup)",
+              "command": "start ms-cxh:localonly",
+              "description": "During Windows 11 setup when asked to sign into Microsoft account, press Shift+F10 (or Fn+Shift+F10 on laptops) to open CMD. Run this command to bypass Microsoft account requirement and create a local account instead. Set username to 'Owner', leave Password blank.",
+              "warning": "On laptops, you may need Fn+Shift+F10 to activate the F10 key."
+            },
+            {
+              "name": "Startup Repair (GUI)",
+              "description": "Windows built-in Startup Repair tool.",
+              "steps": [
+                "Boot from Windows USB drive",
+                "Click 'Repair your computer' (NOT Install Now)",
+                "Troubleshoot → Advanced Options → Startup Repair",
+                "Select your Windows installation and let it run",
+                "If Startup Repair fails, use the bootrec or DISM commands above"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Driver Issues",
+          "description": "Installing, updating, rolling back, and removing device drivers that cause system instability, hardware failure, or BSODs.",
+          "children": [
+            {
+              "name": "Update All Drivers",
+              "command": "devmgmt.msc",
+              "description": "Open Device Manager and look for any device with a yellow warning triangle (!) — these have driver problems. Right-click → Update driver. For critical hardware (GPU, network), always download drivers directly from the manufacturer's website rather than using Windows Update."
+            },
+            {
+              "name": "Roll Back a Driver",
+              "description": "If a problem started after a driver update, roll back to the previous version.",
+              "command": "devmgmt.msc",
+              "steps": [
+                "devmgmt.msc → find the device",
+                "Right-click → Properties → Driver tab",
+                "Click 'Roll Back Driver' (available only if a previous driver was installed)",
+                "Select the reason and click Yes",
+                "Restart the computer"
+              ]
+            },
+            {
+              "name": "List All Drivers",
+              "command": "driverquery /v\ndriverquery /v | clip",
+              "description": "Lists every driver installed on the system with verbose details. Pipe to clip to copy the full list to clipboard."
+            },
+            {
+              "name": "Export Drivers Backup",
+              "command": "DISM /Online /Export-Driver /Destination:C:\\DriversBackup",
+              "description": "Exports all drivers to C:\\DriversBackup before a Windows reinstall, so you can restore them without internet access afterward."
+            }
+          ]
+        },
+        {
+          "name": "Security & Malware",
+          "description": "Scanning for malware, using Windows Defender, checking for suspicious processes, and recovering from infections.",
+          "children": [
+            {
+              "name": "Windows Defender Full Scan",
+              "command": "\"C:\\Program Files\\Windows Defender\\MpCmdRun.exe\" -Scan -ScanType 2",
+              "description": "Runs a full Windows Defender antivirus scan from the command line. ScanType 2 = Full Scan. ScanType 1 = Quick Scan. Must run as Admin."
+            },
+            {
+              "name": "Update Defender Signatures",
+              "command": "\"C:\\Program Files\\Windows Defender\\MpCmdRun.exe\" -SignatureUpdate",
+              "description": "Forces Windows Defender to download the latest malware definition signatures. Run before a scan for best results."
+            },
+            {
+              "name": "Check Suspicious Processes",
+              "command": "tasklist /v",
+              "description": "Lists all running processes with verbose info. Look for unfamiliar process names, processes running from temp folders (C:\\Users\\...\\AppData\\Temp\\), or processes consuming unusual resources."
+            },
+            {
+              "name": "Check Startup Items for Malware",
+              "command": "msconfig",
+              "description": "Open msconfig → Startup tab. Any startup item pointing to a temp folder, AppData\\Roaming, or an unusual path is suspicious. Also use: Task Manager → Startup apps for the modern view."
+            },
+            {
+              "name": "Reset Browser (Post-Infection)",
+              "description": "After removing malware, reset browsers to remove hijacked settings, extensions, and modified search engines.",
+              "steps": [
+                "Chrome: Settings → Reset settings → Restore settings to original defaults",
+                "Edge: Settings → Reset settings → Restore settings to default values",
+                "Firefox: Help → More Troubleshooting Info → Refresh Firefox",
+                "After reset: check and re-install only trusted extensions"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "USB & Peripherals",
+          "description": "Troubleshooting USB ports not working, devices not recognized, and peripheral connection issues.",
+          "children": [
+            {
+              "name": "USB Device Not Recognized",
+              "description": "USB device shows 'Unknown device' or isn't detected at all.",
+              "steps": [
+                "Try the device in a different USB port",
+                "Try a different USB cable",
+                "devmgmt.msc → View → Show hidden devices → look for Unknown Device with !",
+                "Right-click → Update driver or Uninstall and reconnect",
+                "Device Manager → Universal Serial Bus controllers → right-click each USB Root Hub → Properties → Power Management → uncheck 'Allow computer to turn off this device'",
+                "Disable USB Selective Suspend: Control Panel → Power Options → Change plan settings → Change advanced power settings → USB settings → Selective suspend → Disabled"
+              ]
+            },
+            {
+              "name": "Reset USB Controllers",
+              "command": "devmgmt.msc",
+              "description": "Sometimes USB controllers get into a bad state. Uninstall all USB Root Hubs in Device Manager → Universal Serial Bus controllers → restart the computer. Windows will reinstall them automatically."
+            },
+            {
+              "name": "Keyboard/Mouse Not Working",
+              "description": "Keyboard or mouse stops responding or is intermittent.",
+              "steps": [
+                "Try a different USB port",
+                "For wireless: replace batteries, re-pair the device",
+                "Check device in Device Manager for driver errors",
+                "Try the device on another computer to rule out hardware failure",
+                "For keyboard: if only some keys fail — clean keyboard or check for stuck keys"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "File Explorer Issues",
+          "description": "Fixing File Explorer crashes, freezes, slow loading, and thumbnail cache corruption.",
+          "children": [
+            {
+              "name": "Restart File Explorer",
+              "command": "taskkill /f /im explorer.exe\nstart explorer.exe",
+              "description": "Kills and restarts the File Explorer process without rebooting. Fixes most temporary Explorer freezes, crashes, or UI glitches instantly."
+            },
+            {
+              "name": "Clear Thumbnail Cache",
+              "command": "taskkill /f /im explorer.exe\ndel /f /s /q /a %LocalAppData%\\Microsoft\\Windows\\Explorer\\thumbcache_*.db\nstart explorer.exe",
+              "description": "Corrupted thumbnail cache causes Explorer to crash or show blank thumbnails. Clears all cache files and restarts Explorer."
+            },
+            {
+              "name": "Reset File Explorer Options",
+              "command": "control folders",
+              "description": "Opens Folder Options to reset Explorer view settings to default. Useful when Explorer behaves unexpectedly with hidden files or folder views."
+            }
+          ]
+        },
+        {
+          "name": "Power Management",
+          "description": "Managing sleep, hibernate, power plans, and diagnosing power-related performance and battery issues.",
+          "children": [
+            {
+              "name": "powercfg /energy",
+              "command": "powercfg /energy",
+              "description": "Analyzes the system for 60 seconds and generates a detailed HTML report highlighting power efficiency problems and battery drain causes."
+            },
+            {
+              "name": "powercfg /batteryreport",
+              "command": "powercfg /batteryreport",
+              "description": "Generates a detailed HTML battery health report showing capacity history, charge cycles, and estimated battery life. Saved to the current directory."
+            },
+            {
+              "name": "Disable Fast Startup",
+              "command": "powercfg /h off",
+              "description": "Disables Hibernate and Fast Startup — which cause issues like black screens, devices not waking properly, and USB problems. Run as Admin. This is often a required troubleshooting step."
+            },
+            {
+              "name": "Set High Performance Mode",
+              "command": "powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
+              "description": "Activates the High Performance power plan. Prevents the CPU from throttling and ensures maximum performance at all times. Use on desktops or when plugged in. To restore Balanced: use GUID 381b4222-f694-41f0-9685-ff5bb260df2e"
+            }
+          ]
+        },
+        {
+          "name": "Process & System Commands",
+          "description": "Essential Windows command-line tools for process management, system information, and administrative tasks.",
+          "children": [
+            {
+              "name": "systeminfo",
+              "command": "systeminfo",
+              "description": "Displays comprehensive system information: OS version, hotfixes installed, RAM, processor, BIOS version, network adapters, and more."
+            },
+            {
+              "name": "whoami",
+              "command": "whoami",
+              "description": "Displays the current user and domain. Useful when troubleshooting permission issues."
+            },
+            {
+              "name": "tasklist /v",
+              "command": "tasklist /v",
+              "description": "Lists all running processes with verbose details: user, CPU time, memory usage."
+            },
+            {
+              "name": "taskkill /IM",
+              "command": "taskkill /IM notepad.exe",
+              "description": "Terminates a process by its .exe name. Replace notepad.exe with your target process name from tasklist."
+            },
+            {
+              "name": "taskkill /PID",
+              "command": "taskkill /PID [process_id] /F",
+              "description": "Force-terminates a process by its Process ID. Find the PID in tasklist /v output. /F forces termination of stubborn processes."
+            },
+            {
+              "name": "shutdown Commands",
+              "description": "Commands for restarting, shutting down, and cancelling pending shutdowns from the command line.",
+              "children": [
+                {
+                  "name": "shutdown /r (Restart)",
+                  "command": "shutdown /r /t 0",
+                  "description": "Immediately restarts the computer. /t 0 means 0 second delay."
+                },
+                {
+                  "name": "shutdown /s (Shutdown)",
+                  "command": "shutdown /s /t 0",
+                  "description": "Immediately shuts down the computer."
+                },
+                {
+                  "name": "shutdown /a (Abort)",
+                  "command": "shutdown /a",
+                  "description": "Cancels a pending shutdown or restart."
+                }
+              ]
+            },
+            {
+              "name": "driverquery /v",
+              "command": "driverquery /v | clip",
+              "description": "Lists all installed drivers verbosely and copies to clipboard."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Mac",
+      "description": "Troubleshooting tools, Terminal commands, and step-by-step solutions for macOS issues on both Intel and Apple Silicon Macs.",
+      "children": [
+        {
+          "name": "Startup Issues",
+          "description": "Fixing Macs that won't turn on, get stuck on the Apple logo, show a question mark folder, or boot to a black screen.",
+          "children": [
+            {
+              "name": "Mac Won't Turn On",
+              "description": "Basic power troubleshooting when the Mac shows no signs of life.",
+              "steps": [
+                "Ensure the power cable is securely connected and the outlet works",
+                "For MacBook: connect charger and wait 10 minutes before pressing power",
+                "Try a different charger or power adapter",
+                "Reset SMC (System Management Controller) — see SMC Reset section",
+                "For desktop Mac: unplug power cord, wait 15 seconds, replug and power on",
+                "If still no response: the logic board may need service"
+              ]
+            },
+            {
+              "name": "Stuck on Apple Logo",
+              "description": "Mac boots to the Apple logo and loading bar but never reaches the desktop.",
+              "steps": [
+                "Force restart: hold Power button 10 seconds until it shuts off, then restart",
+                "Boot into Safe Mode (see Safe Mode section) — if it boots in Safe Mode, a login item is the cause",
+                "Boot into Recovery Mode and run First Aid in Disk Utility",
+                "Reinstall macOS from Recovery Mode (does not erase your data)"
+              ]
+            },
+            {
+              "name": "Question Mark Folder (?)",
+              "description": "A blinking folder with a question mark means the Mac cannot find a valid startup disk. Usually caused by a disconnected or failed drive, or corrupted startup disk settings.",
+              "steps": [
+                "Boot into Recovery Mode",
+                "Open Startup Disk (System Preferences) — select your Macintosh HD",
+                "If startup disk isn't listed: open Disk Utility → select Macintosh HD → First Aid",
+                "If First Aid finds errors it can't fix: reinstall macOS or replace drive"
+              ]
+            },
+            {
+              "name": "Boot into Recovery Mode",
+              "description": "Recovery Mode provides access to Disk Utility, Terminal, and macOS reinstallation tools without booting into macOS.",
+              "steps": [
+                "Intel Mac: Restart → immediately hold Command + R until Apple logo appears",
+                "Apple Silicon Mac: Press and hold Power button → 'Loading startup options' → click Options → Continue",
+                "From Recovery: use Disk Utility, reinstall macOS, or open Terminal"
+              ]
+            },
+            {
+              "name": "Boot into Safe Mode",
+              "description": "Safe Mode loads only essential system software, disabling all login items and third-party extensions. If the Mac works in Safe Mode, a startup item or extension is the cause of the problem.",
+              "steps": [
+                "Intel Mac: Restart → hold Shift immediately → release when login screen appears",
+                "Apple Silicon Mac: Shut down → press and hold Power button until 'Loading startup options' → select drive → hold Shift → click 'Continue in Safe Mode'",
+                "Safe Mode indicator: 'Safe Boot' appears in red text at top-right of login screen",
+                "To exit Safe Mode: restart normally (no keys held)"
+              ]
+            },
+            {
+              "name": "Startup Disk Full (Boot Failure)",
+              "description": "If the startup disk is completely full, macOS may fail to boot.",
+              "steps": [
+                "Boot into Recovery Mode",
+                "Open Terminal from Recovery",
+                "Type: ls /Volumes/ to see drive names",
+                "Navigate to large folders: cd /Volumes/Macintosh\\ HD/private/var/folders",
+                "Delete specific large log or cache files",
+                "Alternatively: use a bootable USB with a tool like DiskDiag"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Performance Issues",
+          "description": "Diagnosing and fixing a slow Mac — spinning beach balls, high CPU/RAM usage, and sluggish applications.",
+          "children": [
+            {
+              "name": "Spinning Beach Ball (Frozen App)",
+              "description": "The spinning beach ball (SPOD) indicates an application is not responding. Force-quit it to restore responsiveness.",
+              "command": "top\nkill -9 [PID]",
+              "steps": [
+                "Press Command + Option + Escape → select the frozen app → Force Quit",
+                "Or: right-click the app in Dock → hold Option → Force Quit appears",
+                "Or via Terminal: run 'top' to find the process, then 'kill -9 [PID]'",
+                "If the entire system is frozen: hold Power button 10 seconds to force restart"
+              ]
+            },
+            {
+              "name": "Activity Monitor",
+              "description": "macOS equivalent of Windows Task Manager. Shows all running processes and their resource usage.",
+              "command": "open -a \"Activity Monitor\"",
+              "steps": [
+                "Finder → Applications → Utilities → Activity Monitor",
+                "Or: Spotlight (Command + Space) → type 'Activity Monitor'",
+                "Click CPU, Memory, Energy, or Disk tabs to sort by usage",
+                "Select a resource-hogging process → click X button to quit it"
+              ]
+            },
+            {
+              "name": "Free Up RAM",
+              "command": "sudo purge",
+              "description": "Forces macOS to purge inactive memory (RAM cache). Temporarily frees memory that macOS was holding in reserve. Run in Terminal. Note: this is usually not necessary — macOS manages memory efficiently."
+            },
+            {
+              "name": "Check Disk Space",
+              "command": "df -h",
+              "description": "Shows disk space usage for all mounted drives in human-readable format. Low disk space (<10% free) significantly degrades performance on all Macs, especially those with SSDs."
+            },
+            {
+              "name": "Manage Login Items (Slow Boot)",
+              "description": "Too many startup apps slow Mac boot time.",
+              "command": "ls ~/Library/LaunchAgents/",
+              "steps": [
+                "Apple menu → System Settings → General → Login Items",
+                "Toggle off apps you don't need at startup",
+                "Also remove Launch Agents from: ~/Library/LaunchAgents/"
+              ]
+            },
+            {
+              "name": "Rebuild Spotlight Index",
+              "description": "A corrupted Spotlight index causes slow searches and high CPU usage from the mdworker process.",
+              "command": "sudo mdutil -E /",
+              "steps": [
+                "Open Terminal",
+                "Run: sudo mdutil -E /",
+                "Enter your password",
+                "Spotlight will reindex — this may take 1-2 hours and slow the Mac temporarily"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Kernel Panic",
+          "description": "A kernel panic causes the Mac to display 'Your computer restarted because of a problem' — the macOS equivalent of a BSOD. The Mac saves a log of what caused it.",
+          "children": [
+            {
+              "name": "Read Kernel Panic Log",
+              "command": "log show --predicate 'eventMessage contains \"panic\"' --last 24h",
+              "description": "Shows kernel panic log entries from the past 24 hours in Terminal. Also check: Console app → Crash Reports → look for .panic files."
+            },
+            {
+              "name": "Check for Bad RAM",
+              "description": "Faulty RAM is a very common cause of recurring kernel panics.",
+              "steps": [
+                "For Intel Macs with removable RAM: reseat RAM modules (remove and reinsert)",
+                "Run Apple Diagnostics: restart and hold D (Intel) or hold Power button, then D (Apple Silicon)",
+                "Apple Diagnostics will test memory and report any errors with a code",
+                "If RAM is faulty: replace it (user-replaceable on some Mac models)"
+              ]
+            },
+            {
+              "name": "Disconnect External Devices",
+              "description": "External devices with bad drivers or firmware can trigger kernel panics. Isolate the cause.",
+              "steps": [
+                "Shut down the Mac",
+                "Disconnect ALL external devices (drives, hubs, monitors via adapters)",
+                "Boot normally — if panics stop, reconnect devices one at a time",
+                "The device that triggers a panic when reconnected is the culprit"
+              ]
+            },
+            {
+              "name": "Update macOS and Apps",
+              "command": "softwareupdate -l",
+              "description": "Lists available macOS software updates in Terminal. Outdated macOS versions and apps are a common kernel panic cause. Install all available updates."
+            },
+            {
+              "name": "Run Disk First Aid",
+              "description": "Disk corruption can trigger kernel panics. Run First Aid on the startup disk from Recovery Mode.",
+              "steps": [
+                "Boot into Recovery Mode (Command+R on Intel, hold Power on Apple Silicon)",
+                "Open Disk Utility",
+                "Select 'Macintosh HD' in the left sidebar",
+                "Click First Aid → Run",
+                "If First Aid reports errors it can't fix: reinstall macOS"
+              ]
+            },
+            {
+              "name": "Reinstall macOS",
+              "description": "If kernel panics persist after all other fixes, reinstall macOS. This does NOT erase your data — it replaces only the OS files.",
+              "steps": [
+                "Boot into Recovery Mode",
+                "Select 'Reinstall macOS' from the Recovery menu",
+                "Follow the on-screen prompts",
+                "This process takes 1-2 hours depending on internet speed"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Disk & Storage",
+          "description": "Using Disk Utility, First Aid, and Terminal to check, repair, and manage storage on macOS.",
+          "children": [
+            {
+              "name": "Disk Utility First Aid",
+              "description": "macOS built-in tool for checking and repairing disk errors.",
+              "steps": [
+                "Finder → Applications → Utilities → Disk Utility",
+                "Select your startup disk in the left panel",
+                "Click First Aid → Run",
+                "For startup disk repair: boot from Recovery Mode first, then run First Aid"
+              ]
+            },
+            {
+              "name": "diskutil (Terminal)",
+              "command": "diskutil list\ndiskutil verifyDisk /dev/disk0\ndiskutil repairDisk /dev/disk0",
+              "description": "Command-line Disk Utility. 'list' shows all disks. 'verifyDisk' checks for errors. 'repairDisk' repairs them. Replace /dev/disk0 with your disk identifier from diskutil list."
+            },
+            {
+              "name": "Check Disk Space Usage",
+              "command": "df -h\ndu -sh ~/Downloads\ndu -sh ~/Library",
+              "description": "df -h shows overall disk space. du -sh shows specific folder sizes. Use to find what's consuming disk space."
+            },
+            {
+              "name": "Free Up Startup Disk Space",
+              "description": "When startup disk is full (common issue on Macs).",
+              "command": "tmutil deletelocalsnapshots /",
+              "steps": [
+                "Apple menu → About This Mac → More Info → Storage Settings",
+                "Click Recommendations — use built-in tools to optimize",
+                "Empty Trash: Finder → Empty Trash",
+                "Clear Downloads folder",
+                "Remove large unused apps: Finder → Applications → sort by Size",
+                "Clear browser caches",
+                "Remove old Time Machine local snapshots: tmutil deletelocalsnapshots /"
+              ]
+            },
+            {
+              "name": "Erase and Format a Drive",
+              "command": "diskutil eraseDisk APFS MacintoshHD /dev/disk2",
+              "description": "Erases and formats a disk with APFS filesystem. Replace 'MacintoshHD' with your desired disk name and /dev/disk2 with your disk identifier from 'diskutil list'. WARNING: This PERMANENTLY DESTROYS all data on that disk.",
+              "warning": "DESTRUCTIVE: Back up all data before running. Cannot be undone."
+            }
+          ]
+        },
+        {
+          "name": "Network Issues (Mac)",
+          "description": "Fixing Wi-Fi, Bluetooth, and internet connectivity problems on macOS using System Settings and Terminal.",
+          "children": [
+            {
+              "name": "Wi-Fi Won't Connect",
+              "description": "Basic Wi-Fi troubleshooting on macOS.",
+              "steps": [
+                "Turn Wi-Fi off and on again in menu bar or System Settings",
+                "Forget the network: System Settings → Wi-Fi → Details → Forget This Network → reconnect",
+                "Restart router (unplug 30 seconds)",
+                "Check if other devices connect to the same network",
+                "Flush DNS cache (see DNS section)",
+                "Delete Wi-Fi preference files (see below)"
+              ]
+            },
+            {
+              "name": "Delete Wi-Fi Preference Files",
+              "command": "sudo rm /Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist\nsudo rm /Library/Preferences/SystemConfiguration/com.apple.network.identification.plist\nsudo rm /Library/Preferences/SystemConfiguration/NetworkInterfaces.plist",
+              "description": "Removes corrupted Wi-Fi configuration files. macOS will recreate them on restart. This fixes persistent Wi-Fi authentication failures.",
+              "warning": "Restart the Mac after deleting these files."
+            },
+            {
+              "name": "Flush DNS Cache (Mac)",
+              "command": "sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder",
+              "description": "Clears the DNS cache on macOS. The command varies by macOS version. This version works on macOS Monterey, Ventura, Sonoma, and Sequoia."
+            },
+            {
+              "name": "Renew DHCP Lease",
+              "description": "Forces macOS to request a new IP address from the router.",
+              "steps": [
+                "System Settings → Network → select your Wi-Fi or Ethernet connection",
+                "Click Details → TCP/IP tab",
+                "Click 'Renew DHCP Lease'"
+              ]
+            },
+            {
+              "name": "Network Diagnostics",
+              "command": "networkQuality",
+              "description": "Built-in macOS network quality test (macOS Monterey+). Tests upload speed, download speed, and network responsiveness. Run in Terminal."
+            },
+            {
+              "name": "Bluetooth Issues",
+              "description": "Bluetooth devices not pairing, disconnecting, or not found.",
+              "command": "sudo rm -f /Library/Preferences/com.apple.Bluetooth.plist\nsudo rm -rf /Library/Preferences/com.apple.Bluetooth/",
+              "steps": [
+                "Toggle Bluetooth off and on in menu bar",
+                "Remove and re-pair the device: System Settings → Bluetooth → click X next to device → Forget → re-pair",
+                "Reset Bluetooth module (Intel Mac): hold Shift+Option and click Bluetooth menu bar icon → Reset Bluetooth Module → Yes",
+                "Apple Silicon Mac: delete Bluetooth preferences file below and restart"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "SMC Reset",
+          "description": "The System Management Controller (SMC) manages low-level functions: power, battery, fans, sleep, and LED indicators. Reset when experiencing: fans running at max speed, not sleeping properly, battery not charging, power button not responding, or display backlight issues.",
+          "children": [
+            {
+              "name": "MacBook with T2 Chip (2018-2020)",
+              "description": "For Intel MacBooks with Apple T2 security chip (MacBook Pro 2018+, MacBook Air 2018+).",
+              "steps": [
+                "Shut down the Mac",
+                "Hold: Right Shift + Left Option + Left Control for 7 seconds",
+                "Continue holding those keys while also pressing the Power button for another 7 seconds",
+                "Release all keys, wait a few seconds, then press Power to turn on"
+              ]
+            },
+            {
+              "name": "MacBook without T2 Chip (2017 and earlier)",
+              "description": "For older Intel MacBooks without the T2 security chip.",
+              "steps": [
+                "Shut down the Mac",
+                "Connect the MagSafe/USB-C charger",
+                "Hold: Left Shift + Left Control + Left Option + Power button for 10 seconds",
+                "Release all keys simultaneously",
+                "Press Power to turn on"
+              ]
+            },
+            {
+              "name": "Mac Mini, Mac Pro, iMac (Intel)",
+              "description": "SMC reset for Intel desktop Macs.",
+              "steps": [
+                "Shut down the Mac",
+                "Unplug the power cord and wait 15 seconds",
+                "Plug the power cord back in and wait 5 seconds",
+                "Press the Power button to turn on"
+              ]
+            },
+            {
+              "name": "Apple Silicon Macs (M1/M2/M3/M4)",
+              "description": "Apple Silicon Macs (M-series chips) do not have an SMC. Instead, restart the Mac — this performs the equivalent function. For persistent issues, shut down, wait 30 seconds, and power on.",
+              "steps": [
+                "Apple menu → Shut Down",
+                "Wait 30 seconds",
+                "Press Power button to restart"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "NVRAM / PRAM Reset",
+          "description": "NVRAM (Non-Volatile RAM) stores settings like display resolution, time zone, startup disk, and sound volume. Reset when experiencing: wrong time zone, wrong startup disk selected, wrong screen resolution, kernel panics.",
+          "children": [
+            {
+              "name": "Intel Mac NVRAM Reset",
+              "description": "Works on all Intel-based Macs. Apple Silicon Macs manage NVRAM automatically — a separate reset is not necessary.",
+              "steps": [
+                "Shut down the Mac",
+                "Press Power button, then immediately hold Command + Option + P + R",
+                "Hold for about 20 seconds — on older Macs you'll hear the startup chime twice",
+                "Release the keys and let the Mac finish starting up",
+                "Reconfigure: time zone, display resolution, startup disk in System Settings"
+              ]
+            },
+            {
+              "name": "Apple Silicon NVRAM",
+              "description": "Apple Silicon Macs reset NVRAM automatically during every restart. No manual reset key combination is needed or available."
+            }
+          ]
+        },
+        {
+          "name": "Audio Issues (Mac)",
+          "description": "Fixing no sound, distorted audio, and sound output/input problems on macOS.",
+          "children": [
+            {
+              "name": "No Sound (Basic Checks)",
+              "description": "Initial sound output checks on macOS.",
+              "steps": [
+                "Click Apple menu → System Settings → Sound",
+                "Ensure the correct output device is selected and volume is up",
+                "Option + click the volume slider in menu bar to see all output devices",
+                "Check if a Bluetooth device is stealing the audio output",
+                "Restart coreaudiod (see below)"
+              ]
+            },
+            {
+              "name": "Restart Core Audio",
+              "command": "sudo killall coreaudiod",
+              "description": "Kills the Core Audio daemon and restarts it automatically. Fixes most cases of sudden audio loss on macOS without requiring a restart."
+            },
+            {
+              "name": "Reset Sound Preferences",
+              "command": "rm ~/Library/Preferences/com.apple.sound.plist\nrm ~/Library/Preferences/com.apple.audio.DeviceSettings.plist",
+              "description": "Deletes corrupted sound preference files. macOS will recreate them with defaults on next restart. Fixes persistent sound output/input configuration issues.",
+              "warning": "Restart the Mac after deleting these files."
+            }
+          ]
+        },
+        {
+          "name": "Display Issues (Mac)",
+          "description": "Fixing resolution problems, external monitor detection, and screen flickering on macOS.",
+          "children": [
+            {
+              "name": "External Monitor Not Detected",
+              "description": "Steps to diagnose when an external display isn't recognized by macOS.",
+              "steps": [
+                "System Settings → Displays → click 'Detect Displays' button",
+                "Try a different cable (HDMI, DisplayPort, USB-C)",
+                "Try a different port on the Mac",
+                "For Apple Silicon: some ports share bandwidth — try the other USB-C port",
+                "Restart the Mac with the monitor connected"
+              ]
+            },
+            {
+              "name": "Wrong Resolution",
+              "command": "System Settings → Displays → Resolution → select 'Scaled' → choose correct resolution",
+              "description": "If the display shows a 'Looks like' resolution and the correct resolution isn't available, the display driver or cable may be limiting the signal."
+            },
+            {
+              "name": "Screen Flickering (Mac)",
+              "description": "Steps to address screen flicker on macOS.",
+              "steps": [
+                "System Settings → Accessibility → Display → uncheck 'Reduce motion'",
+                "Try a different cable or adapter — cheap HDMI adapters cause flickering",
+                "Reset NVRAM (Intel Mac) — see NVRAM Reset section",
+                "Check Activity Monitor for GPU-heavy processes",
+                "Update macOS — display flickering bugs are often fixed in updates"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Battery & Power (Mac)",
+          "description": "Diagnosing battery health, charging issues, and power consumption problems on MacBooks.",
+          "children": [
+            {
+              "name": "Check Battery Health",
+              "command": "system_profiler SPPowerDataType",
+              "description": "Shows detailed battery information including cycle count, condition (Normal/Service Recommended), and charging status. A battery with >1000 cycles or 'Service Recommended' condition needs replacing."
+            },
+            {
+              "name": "Battery Not Charging",
+              "description": "Steps to diagnose a MacBook that won't charge.",
+              "steps": [
+                "Try a different USB-C cable and charger",
+                "Clean the USB-C port gently with compressed air",
+                "Reset SMC (see SMC Reset section)",
+                "Check System Settings → Battery — if it shows 'Not Charging' intentionally, turn off Optimized Battery Charging",
+                "Check for heat — MacBooks won't charge above 95% when very hot"
+              ]
+            },
+            {
+              "name": "Check What's Draining Battery",
+              "description": "Identify which apps are using the most battery.",
+              "steps": [
+                "Click Battery icon in menu bar — see which apps are using 'significant energy'",
+                "Activity Monitor → Energy tab → sort by Energy Impact",
+                "System Settings → Battery → Battery Health → Manage"
+              ]
+            },
+            {
+              "name": "Generate Diagnostics Report",
+              "command": "sudo sysdiagnose -f ~/Desktop/",
+              "description": "Generates a comprehensive diagnostic report including system logs, crash reports, hardware info, and battery data. Saved to Desktop as a compressed archive. Share with Apple Support when needed."
+            }
+          ]
+        },
+        {
+          "name": "App Issues (Mac)",
+          "description": "Fixing application crashes, 'App is damaged' errors, apps not opening, and Mac App Store problems.",
+          "children": [
+            {
+              "name": "Force Quit an App",
+              "command": "Command + Option + Escape",
+              "description": "Opens the Force Quit dialog to close unresponsive apps. Select the frozen app and click Force Quit."
+            },
+            {
+              "name": "App Won't Open (Gatekeeper)",
+              "command": "sudo xattr -rd com.apple.quarantine /Applications/AppName.app",
+              "description": "macOS Gatekeeper blocks apps not from the App Store or identified developers. This command removes the quarantine attribute from a specific app. Replace 'AppName.app' with your app's actual name.",
+              "warning": "Only run this for apps you trust. Quarantine protects against malware."
+            },
+            {
+              "name": "Clear App Cache",
+              "command": "rm -rf ~/Library/Caches/[app-bundle-id]",
+              "description": "Clears the cache for a specific application. Navigate to ~/Library/Caches/ in Finder (hold Option, click Go menu → Library) to find your app's cache folder name."
+            },
+            {
+              "name": "Reinstall an App",
+              "description": "Clean reinstall steps for a misbehaving app.",
+              "steps": [
+                "Drag the app from Applications folder to Trash",
+                "Use a tool like AppCleaner (free) to also remove all preference files",
+                "Empty Trash",
+                "Reinstall from App Store or developer website"
+              ]
+            },
+            {
+              "name": "App Store Not Loading",
+              "command": "sudo killall -KILL App\\ Store",
+              "steps": [
+                "Force-quit App Store: Command+Option+Escape → App Store → Force Quit",
+                "Clear App Store cache: open Terminal → type: rm -rf ~/Library/Caches/com.apple.appstore",
+                "Sign out: App Store → [your name] → Sign Out → sign back in",
+                "Check date and time — wrong system clock breaks App Store authentication"
+              ],
+              "description": "Mac App Store stuck loading, blank, or won't authenticate. Force-quit and clear cache."
+            }
+          ]
+        },
+        {
+          "name": "Permissions & Maintenance",
+          "description": "Repairing disk permissions, running maintenance scripts, and system-level macOS housekeeping.",
+          "children": [
+            {
+              "name": "Run Maintenance Scripts",
+              "command": "sudo periodic daily weekly monthly",
+              "description": "macOS has built-in maintenance scripts (daily, weekly, monthly) that usually run automatically. Force-run all three manually if the Mac is slow or hasn't been on during their scheduled time (3am)."
+            },
+            {
+              "name": "Repair Disk Permissions (Disk Utility)",
+              "description": "In older macOS versions (pre-El Capitan), you could repair disk permissions in Disk Utility. In modern macOS, SIP (System Integrity Protection) handles this automatically. Run First Aid in Disk Utility instead."
+            },
+            {
+              "name": "Clear User Caches",
+              "command": "rm -rf ~/Library/Caches/*",
+              "description": "Clears all user-level application caches. Safe to run — apps will rebuild their caches. Can free significant disk space and resolve app misbehavior.",
+              "warning": "Apps may start slower once after this as they rebuild caches."
+            },
+            {
+              "name": "Reset Launchpad",
+              "command": "defaults write com.apple.dock ResetLaunchpad -bool true; killall Dock",
+              "description": "Resets Launchpad to its default layout — useful if app icons are missing, duplicated, or in the wrong order."
+            }
+          ]
+        },
+        {
+          "name": "Terminal Utilities",
+          "description": "Useful macOS Terminal commands for diagnostics, system info, and helpful built-in tools.",
+          "children": [
+            {
+              "name": "System Diagnostics",
+              "command": "sudo sysdiagnose -f ~/Desktop/",
+              "description": "Generates a comprehensive diagnostic report (logs, crash reports, hardware info) saved to Desktop. Share with Apple Support."
+            },
+            {
+              "name": "Software Updates (Terminal)",
+              "command": "softwareupdate --list\nsoftwareupdate --all --install --force",
+              "description": "Lists available updates (--list) and installs all of them (--all --install --force). Useful when the GUI Software Update is broken."
+            },
+            {
+              "name": "Check Uptime",
+              "command": "uptime",
+              "description": "Shows how long the Mac has been running since last restart. Long uptimes can contribute to performance degradation."
+            },
+            {
+              "name": "Check macOS Version",
+              "command": "sw_vers",
+              "description": "Displays the macOS version, build number, and product name from the Terminal."
+            },
+            {
+              "name": "Weather in Terminal",
+              "command": "curl http://wttr.in/",
+              "description": "Displays a 3-day weather forecast in the Terminal. Also works: curl wttr.in/moon for the current moon phase."
+            },
+            {
+              "name": "Watch Star Wars (ASCII)",
+              "command": "nc towel.blinkenlights.nl 23",
+              "description": "Watch Star Wars Episode IV in ASCII art via netcat. Press Ctrl+C to exit."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

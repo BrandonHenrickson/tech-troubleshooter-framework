@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tech Troubleshooter Framework</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%BB%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
+          integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span class="emoji" aria-hidden="true">💻</span>
+      <span>Tech Troubleshooter Framework</span>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="Search tools..." autocomplete="off" spellcheck="false" />
+      <span id="result-count" aria-live="polite"></span>
+    </div>
+  </header>
+
+  <main id="canvas">
+    <svg id="tree" xmlns="http://www.w3.org/2000/svg"></svg>
+  </main>
+
+  <aside id="detail-panel" aria-hidden="true">
+    <button id="panel-close" aria-label="Close panel">×</button>
+    <div id="panel-body"></div>
+  </aside>
+
+  <div id="legend">
+    <div class="legend-row"><span class="swatch swatch-branch"></span> Branch / Category — click to expand</div>
+    <div class="legend-row"><span class="swatch swatch-leaf"></span> Command / Solution (leaf node)</div>
+    <div class="legend-row"><span class="swatch swatch-match"></span> Search result match</div>
+    <button id="reset-view">Reset View</button>
+  </div>
+
+  <script src="main.js"></script>
+
+  <!--
+    DEPLOYMENT TO GITHUB PAGES:
+    1. Create a new GitHub repository (public)
+    2. Upload all 5 files to the repo root
+    3. Go to Settings → Pages
+    4. Source: Deploy from a branch → Branch: main → Folder: / (root)
+    5. Click Save. Your site will be live at:
+       https://[your-username].github.io/[repo-name]/
+    6. To update: edit arf.json and push. No build step required.
+  -->
+</body>
+</html>
