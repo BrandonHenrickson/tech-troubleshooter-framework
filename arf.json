@@ -285,6 +285,57 @@
                   "name": "WHEA_UNCORRECTABLE_ERROR",
                   "description": "Hardware error detected by Windows Hardware Error Architecture. Causes: overclocking instability, failing CPU, bad RAM, overheating. Fix: Reset BIOS to default, reseat RAM, check CPU temps, run Memory Diagnostic.",
                   "errorCode": "0x00000124"
+                },
+                {
+                  "name": "DRIVER_POWER_STATE_FAILURE",
+                  "description": "A driver failed to respond properly to a power-state-change request (sleep, hibernate, or shutdown). Almost always a driver issue, often a graphics, network, or chipset driver. Disable Fast Startup as a first step.",
+                  "errorCode": "0x0000009F",
+                  "steps": [
+                    "Disable Fast Startup: open Admin CMD → run: powercfg /h off",
+                    "Update GPU and network drivers from the manufacturer's website",
+                    "Update or roll back drivers shown in WhoCrashed or BlueScreenView pointing to a specific .sys file",
+                    "Run Device Manager → look for any driver with a yellow warning icon and update it"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-0x9f--driver-power-state-failure"
+                },
+                {
+                  "name": "BAD_POOL_HEADER",
+                  "description": "A pool header is corrupt — Windows detected memory corruption in the kernel pool. Almost always caused by faulty RAM, corrupted drivers, or sometimes a failing disk. Run Memory Diagnostic first.",
+                  "errorCode": "0x00000019",
+                  "steps": [
+                    "Run Windows Memory Diagnostic: Win+R → mdsched.exe → restart and test",
+                    "Update or uninstall recently installed drivers",
+                    "Boot into Safe Mode → if stable, a third-party driver is the cause",
+                    "Run sfc /scannow then DISM /Online /Cleanup-Image /RestoreHealth",
+                    "Check disk: chkdsk C: /f /r"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-0x19--bad-pool-header"
+                },
+                {
+                  "name": "INACCESSIBLE_BOOT_DEVICE",
+                  "description": "Windows lost access to the system partition during startup. Common after BIOS changes, storage controller driver changes, cloned disks, or after major Windows updates. Boot to Recovery and run startup repair or rebuild BCD.",
+                  "errorCode": "0x0000007B",
+                  "steps": [
+                    "Boot from Windows installation USB → Repair your computer → Troubleshoot → Advanced options → Startup Repair",
+                    "If that fails: open Command Prompt from Recovery → run: chkdsk C: /f /r",
+                    "Rebuild boot configuration: bootrec /fixmbr → bootrec /fixboot → bootrec /rebuildbcd",
+                    "In BIOS/UEFI: verify SATA mode is correct (AHCI vs RAID) — changing modes mid-install causes this error",
+                    "If after a Windows update: boot to Recovery → Uninstall Updates"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-0x7b--inaccessible-boot-device"
+                },
+                {
+                  "name": "UNEXPECTED_KERNEL_MODE_TRAP",
+                  "description": "The CPU generated an exception the kernel didn't catch — typically a double fault. Causes: faulty RAM, overclocking instability, or hardware-related driver bugs. Reset BIOS to defaults and run Memory Diagnostic first.",
+                  "errorCode": "0x0000007F",
+                  "steps": [
+                    "Reset BIOS to factory defaults — disable any CPU/RAM overclocking",
+                    "Run Windows Memory Diagnostic (mdsched.exe) — bad RAM is a top cause",
+                    "Reseat RAM modules physically (Intel desktops with removable RAM)",
+                    "Update chipset and BIOS firmware from the motherboard manufacturer",
+                    "Check CPU temperatures under load — overheating triggers this on stressed systems"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-0x7f--unexpected-kernel-mode-trap"
                 }
               ]
             },
@@ -732,6 +783,64 @@
                 "Download the .msu file matching your version and architecture",
                 "Run the .msu file and restart"
               ]
+            },
+            {
+              "name": "Update Error Codes",
+              "description": "Specific Windows Update error codes and their fixes. If standard repair (sfc/DISM) doesn't resolve, try the targeted fix below for the exact code shown.",
+              "children": [
+                {
+                  "name": "Error 0x80070002",
+                  "description": "Windows Update can't find a file it needs. Usually caused by a corrupted SoftwareDistribution folder. Standard fix: stop Windows Update services, rename SoftwareDistribution, restart services.",
+                  "errorCode": "0x80070002",
+                  "command": "net stop wuauserv\nnet stop bits\nren C:\\Windows\\SoftwareDistribution SoftwareDistribution.old\nnet start wuauserv\nnet start bits",
+                  "steps": [
+                    "Open Admin CMD",
+                    "Run the commands above, in order",
+                    "Open Settings → Windows Update → 'Check for updates' — Windows will rebuild SoftwareDistribution and re-download updates"
+                  ],
+                  "source": "https://support.microsoft.com/en-us/windows/troubleshoot-problems-updating-windows-188c2b0f-10a7-d72f-65b8-32d177eb136c"
+                },
+                {
+                  "name": "Error 0x800f0922",
+                  "description": "Update failed to connect to the update server OR a previous .NET Framework installation failed. Often caused by a corrupted scheduled task or insufficient space on the System Reserved partition. Microsoft's KB documents a specific scheduled-task fix.",
+                  "errorCode": "0x800f0922",
+                  "command": "schtasks /Delete /TN \"\\Microsoft\\Windows\\Servicing\\StartComponentCleanup\" /F\nschtasks /Run /TN \"\\Microsoft\\Windows\\Servicing\\StartComponentCleanup\"",
+                  "steps": [
+                    "Check VPN: disconnect any active VPN, then retry update — VPNs commonly cause 0x800f0922",
+                    "Check System Reserved partition size: needs at least 500 MB free — use Disk Management to check",
+                    "If scheduled-task related (per Microsoft KB): delete the corrupted StartComponentCleanup task with the command shown, then re-create it via Task Scheduler import",
+                    "Disable third-party antivirus temporarily and retry"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/error-0x800f0922-installing-windows-updates"
+                },
+                {
+                  "name": "Error 0x80073712",
+                  "description": "A file needed by Windows Update is missing or corrupted. Typically a CBS (Component-Based Servicing) manifest issue. Standard fix is DISM RestoreHealth followed by SFC.",
+                  "errorCode": "0x80073712",
+                  "command": "DISM /Online /Cleanup-Image /RestoreHealth\nsfc /scannow",
+                  "steps": [
+                    "Open Admin CMD",
+                    "Run: DISM /Online /Cleanup-Image /RestoreHealth (may take 30+ minutes)",
+                    "When DISM completes successfully, run: sfc /scannow",
+                    "Restart and retry Windows Update",
+                    "If DISM fails with the same error: use the offline ISO source method (see DISM section)"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/answers/questions/4300283/windows-10-update-error-0x80073712-trying-to-insta"
+                },
+                {
+                  "name": "Error 0x80070005 (Access Denied)",
+                  "description": "Windows Update or activation got 'Access denied'. Caused by insufficient permissions on the SoftwareDistribution folder, corrupted update components, or running under a non-admin user.",
+                  "errorCode": "0x80070005",
+                  "command": "net stop wuauserv\nnet stop cryptSvc\nnet stop bits\nnet stop msiserver\nren C:\\Windows\\SoftwareDistribution SoftwareDistribution.old\nren C:\\Windows\\System32\\catroot2 catroot2.old\nnet start wuauserv\nnet start cryptSvc\nnet start bits\nnet start msiserver",
+                  "steps": [
+                    "Verify you're signed in as an administrator",
+                    "Run the full Windows Update component reset (above commands, in order, as Admin)",
+                    "Verify date and time are correct: Settings → Time & language → 'Set time automatically' On",
+                    "Run the Windows Update troubleshooter: Settings → System → Troubleshoot → Other troubleshooters → Windows Update → Run"
+                  ],
+                  "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/licensing-and-activation/error-0x80070005-access-denied"
+                }
+              ]
             }
           ]
         },
@@ -1075,6 +1184,17 @@
                 "Delete specific large log or cache files",
                 "Alternatively: use a bootable USB with a tool like DiskDiag"
               ]
+            },
+            {
+              "name": "Bluetooth Mouse/Keyboard Not Working in Recovery",
+              "description": "Bluetooth peripherals (Magic Mouse/Trackpad/Keyboard) often don't connect during macOS Recovery Mode because the Bluetooth stack isn't fully loaded. You need a wired (USB) keyboard/mouse to perform Recovery operations on Apple Silicon Macs.",
+              "steps": [
+                "Connect a USB or USB-C wired keyboard and mouse before entering Recovery Mode",
+                "If you only have wireless: on Magic Keyboard/Mouse, connect via Lightning/USB-C cable — it acts as wired in Recovery",
+                "Apple Silicon Macs: power down fully, then hold the power button until 'Loading startup options' appears — wait an extra 15 seconds with wired input plugged in",
+                "If a wired keyboard still doesn't work, the Recovery partition itself may be damaged — boot to Internet Recovery (Cmd+Option+R on Intel) or DFU restore (Apple Silicon)"
+              ],
+              "source": "https://discussions.apple.com/thread/255262757"
             }
           ]
         },
@@ -1237,6 +1357,20 @@
               "command": "diskutil eraseDisk APFS MacintoshHD /dev/disk2",
               "description": "Erases and formats a disk with APFS filesystem. Replace 'MacintoshHD' with your desired disk name and /dev/disk2 with your disk identifier from 'diskutil list'. WARNING: This PERMANENTLY DESTROYS all data on that disk.",
               "warning": "DESTRUCTIVE: Back up all data before running. Cannot be undone."
+            },
+            {
+              "name": "'Disk Not Ejected Properly' Loop",
+              "description": "Repeating 'Disk Not Ejected Properly' notifications for an external drive, often after the Mac wakes from sleep. Caused by macOS putting the drive to sleep too aggressively (especially USB-C/Thunderbolt enclosures) or a faulty cable.",
+              "steps": [
+                "Try a different USB-C / USB-A / Thunderbolt cable — cheap cables cause this",
+                "Disable disk sleep: System Settings → Battery (or Energy Saver) → Options → uncheck 'Put hard disks to sleep when possible'",
+                "Plug the drive directly into the Mac, not through a hub or dock",
+                "For external SSDs: check the enclosure firmware — many SanDisk/SSK enclosures had known sleep bugs",
+                "On laptops, set 'Prevent automatic sleeping on power adapter when display is off' for testing",
+                "If drive shows but Disk Utility reports errors: First Aid → if it fails, the drive may be failing"
+              ],
+              "warning": "Repeated improper ejection CAN cause file system corruption over time. Run Disk Utility First Aid if the warnings have been happening for a while.",
+              "source": "https://discussions.apple.com/thread/254793541"
             }
           ]
         },
@@ -1560,6 +1694,555 @@
               "name": "Watch Star Wars (ASCII)",
               "command": "nc towel.blinkenlights.nl 23",
               "description": "Watch Star Wars Episode IV in ASCII art via netcat. Press Ctrl+C to exit."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Browser Issues",
+      "description": "Fixing common problems in Chrome, Microsoft Edge, Firefox, and Safari — from slow performance and cache errors to sync, reset, and load failures.",
+      "children": [
+        {
+          "name": "Chrome",
+          "description": "Google Chrome troubleshooting on Windows and Mac.",
+          "children": [
+            {
+              "name": "Slow / High Memory Use (Memory Saver)",
+              "description": "Chrome's Memory Saver deactivates inactive tabs to reduce RAM usage. Turn it on for systems with limited memory or many open tabs. Optionally allow specific sites to stay active.",
+              "steps": [
+                "Open Chrome → top-right ⋮ menu → Settings",
+                "On the left, select Performance",
+                "Turn on Memory Saver",
+                "To keep specific sites active: under 'Always keep these sites active', click Add and enter the site URL"
+              ],
+              "source": "https://support.google.com/chrome/answer/12929150"
+            },
+            {
+              "name": "ERR_CACHE_MISS",
+              "description": "Chrome shows ERR_CACHE_MISS when it needs to re-request page content but the cache is missing or corrupted. Usually happens after submitting a form or clicking Back. Most cases resolve by reloading, clearing cache, or disabling extensions.",
+              "steps": [
+                "Press Ctrl+F5 (Cmd+Shift+R on Mac) to hard-reload bypassing cache",
+                "Clear browsing data: ⋮ → Delete browsing data → Time range: All time → check 'Cached images and files' → Delete data",
+                "Try the page in Incognito (Ctrl+Shift+N) to test without extensions",
+                "If only one site is affected, the issue is likely the site's form handling — try a different browser"
+              ],
+              "source": "https://support.google.com/chrome/thread/405658259/showing-err-cache-miss"
+            },
+            {
+              "name": "Sync Paused / Not Syncing",
+              "description": "Chrome pauses sync when you sign out of any Google service (like Gmail). Click 'Verify it's you' to sign back in and resume sync. If sync turns off every time Chrome closes, enable on-device site data.",
+              "steps": [
+                "If the avatar says 'Paused': click it → 'Verify it's you' → 'Sign in again'",
+                "To keep sync persistent: Settings → Privacy and security → Site Settings → Additional content settings → On-device site data → 'Allow sites to save data on your device'"
+              ],
+              "source": "https://support.google.com/chrome/answer/9175737"
+            },
+            {
+              "name": "Reset Chrome to Defaults",
+              "description": "Restores Chrome to factory settings — resets default search engine, homepage, startup tab, pinned tabs, and disables extensions. Bookmarks, history, and passwords are NOT deleted. Use after an extension hijacks your browser.",
+              "steps": [
+                "Open Chrome → ⋮ menu → Settings",
+                "Click 'Reset settings' in the left menu",
+                "Click 'Restore settings to their original defaults'",
+                "Click 'Reset settings' to confirm"
+              ],
+              "source": "https://support.google.com/chrome/answer/3296214"
+            }
+          ]
+        },
+        {
+          "name": "Microsoft Edge",
+          "description": "Edge browser troubleshooting on Windows.",
+          "children": [
+            {
+              "name": "Edge Won't Open / Keeps Crashing",
+              "description": "If Edge won't open or crashes immediately on launch, the issue is usually low memory, a corrupted extension, or an outdated build. Microsoft's recommended fix sequence: close other apps, update Edge, disable extensions, then repair.",
+              "steps": [
+                "Close other tabs and applications to free memory",
+                "Update Edge: ⋯ menu → Help and feedback → About Microsoft Edge",
+                "Disable extensions: edge://extensions → toggle each off",
+                "Repair Edge: Settings (Windows) → Apps → Installed apps → Microsoft Edge → ⋯ → Modify → Repair (does not delete data)"
+              ],
+              "source": "https://support.microsoft.com/en-us/edge/what-to-do-if-microsoft-edge-isn-t-working"
+            },
+            {
+              "name": "Reset Edge Settings",
+              "description": "Resets startup page, new tab page, pinned tabs, and search engine to defaults and disables all extensions. Does NOT clear favorites, history, or saved passwords.",
+              "steps": [
+                "Open Edge → ⋯ menu → Settings",
+                "Click 'Reset settings' in the left navigation",
+                "Click 'Restore settings to their default values'",
+                "Click Reset to confirm"
+              ],
+              "source": "https://support.microsoft.com/en-us/edge/what-to-do-if-microsoft-edge-isn-t-working"
+            },
+            {
+              "name": "Disable Edge Auto-Updates",
+              "description": "Microsoft Edge auto-updates via two scheduled tasks (MicrosoftEdgeUpdateTaskMachineCore and MicrosoftEdgeUpdateTaskMachineUA) and the MicrosoftEdgeUpdate service. Disabling all three pauses automatic updates. Re-enable them to resume.",
+              "command": "schtasks /Change /TN \"MicrosoftEdgeUpdateTaskMachineCore\" /DISABLE\nschtasks /Change /TN \"MicrosoftEdgeUpdateTaskMachineUA\" /DISABLE\nsc config MicrosoftEdgeUpdate start= disabled",
+              "warning": "Disabling updates means missing security patches. Re-enable with /ENABLE and 'start= demand' when ready.",
+              "source": "https://superuser.com/questions/1571848/is-there-any-way-to-disable-automatic-updates-for-microsoft-edge-on-windows-7"
+            }
+          ]
+        },
+        {
+          "name": "Firefox",
+          "description": "Mozilla Firefox troubleshooting on Windows and Mac.",
+          "children": [
+            {
+              "name": "Troubleshoot Mode (formerly Safe Mode)",
+              "description": "Starts Firefox with add-ons, custom themes, and hardware acceleration disabled. If the problem disappears in Troubleshoot Mode, the cause is an extension or theme. Add-ons are kept installed but inactive.",
+              "steps": [
+                "Open Firefox menu → Help → Troubleshoot Mode...",
+                "Click Restart in the confirmation dialog",
+                "Click 'Open' when prompted",
+                "Test whether the problem still occurs",
+                "Exit by restarting Firefox normally"
+              ],
+              "source": "https://support.mozilla.org/en-US/kb/diagnose-firefox-issues-using-troubleshoot-mode"
+            },
+            {
+              "name": "Clear Cookies for One Site",
+              "description": "Deletes cookies and site data for a specific website without losing your other logins. Useful when one site has stuck login or layout issues.",
+              "steps": [
+                "Open Firefox menu → Settings → Privacy & Security",
+                "Scroll to 'Cookies and Site Data' → click 'Manage Data...'",
+                "In the search box, type the website name",
+                "Select the entry → click 'Remove Selected' → 'Save Changes'"
+              ],
+              "source": "https://support.mozilla.org/en-US/kb/clear-cookies-and-site-data-firefox"
+            }
+          ]
+        },
+        {
+          "name": "Safari (Mac)",
+          "description": "Safari troubleshooting on macOS.",
+          "children": [
+            {
+              "name": "Safari Won't Load Pages",
+              "description": "When Safari shows blank pages, stops responding, or won't connect, work through Apple's recommended fix sequence: reload, update macOS, check extensions, clear cache, and verify network settings.",
+              "steps": [
+                "Reload the page: View menu → Reload Page (or Cmd+R)",
+                "Force-reload bypassing cache: Cmd+Option+R",
+                "Install macOS updates: Apple menu → System Settings → General → Software Update",
+                "Disable Safari extensions: Safari → Settings → Extensions → uncheck each",
+                "Clear caches: Develop menu → Empty Caches (enable Develop menu in Settings → Advanced)",
+                "Disable iCloud Private Relay if active: System Settings → Apple Account → iCloud → Private Relay"
+              ],
+              "source": "https://support.apple.com/en-us/102564"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Microsoft Office",
+      "description": "Troubleshooting Outlook, Excel, Word, and Office activation issues. Outlook desktop client issues live here; email protocol/provider issues live in the Email Issues branch.",
+      "children": [
+        {
+          "name": "Outlook (Desktop)",
+          "description": "Outlook desktop application issues — data files, offline mode, safe mode, and add-in problems.",
+          "children": [
+            {
+              "name": "PST File Corruption (scanpst.exe)",
+              "description": "The Inbox Repair tool (SCANPST.EXE) scans Outlook PST data files for errors and repairs them. The tool ships with Outlook but isn't on the Start menu — you must run it from the install folder.",
+              "command": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\SCANPST.EXE\"",
+              "steps": [
+                "Exit Outlook completely",
+                "Open File Explorer and navigate to your Office install folder (path varies by version):\n   - Microsoft 365 / 2024 / 2021 / 2019 / 2016: C:\\Program Files\\Microsoft Office\\root\\Office16\\\n   - Outlook 2013: C:\\Program Files (x86)\\Microsoft Office\\Office15\\",
+                "Double-click SCANPST.EXE",
+                "Click Browse and select your .pst file (typically in C:\\Users\\[user]\\Documents\\Outlook Files\\)",
+                "Click Start. If errors are found, check 'Make backup of scanned file' and click Repair",
+                "Reopen Outlook"
+              ],
+              "warning": "Run scanpst multiple times if errors persist — one pass may not catch everything. Always keep the backup file it creates.",
+              "source": "https://support.microsoft.com/en-us/office/repair-outlook-data-files-pst-and-ost-25663bc3-11ec-4412-86c4-60458afc5253"
+            },
+            {
+              "name": "Rebuild OST File",
+              "description": "OST files are an offline cache of an Exchange/IMAP mailbox. If an OST is corrupted, delete it — Outlook will rebuild it automatically from the server on next launch. No data loss because the mail lives on the server.",
+              "steps": [
+                "Exit Outlook",
+                "Open File Explorer → paste %localappdata%\\Microsoft\\Outlook into the address bar",
+                "Find the .ost file for your account and delete it (or rename to .ost.old)",
+                "Reopen Outlook — it will download a fresh copy from the server"
+              ],
+              "warning": "Only do this for Exchange/IMAP accounts where mail is on the server. For POP3 or 'local-only' folders, the OST may contain the only copy of your messages.",
+              "source": "https://support.microsoft.com/en-us/office/repair-outlook-data-files-pst-and-ost-25663bc3-11ec-4412-86c4-60458afc5253"
+            },
+            {
+              "name": "Outlook Stuck in Offline Mode",
+              "description": "Outlook can get stuck showing 'Working Offline' even when connected. Toggle the Work Offline button on the Send/Receive tab to reconnect.",
+              "steps": [
+                "Open Outlook → Send/Receive tab on the ribbon",
+                "Click 'Work Offline' to toggle it off — the status bar should change from 'Working Offline' to 'Connected'",
+                "If the button is greyed out: File → Account Settings → Account Settings → double-click your account → ensure server settings are correct",
+                "If still offline: restart Outlook or your computer"
+              ],
+              "source": "https://support.microsoft.com/en-us/office/work-offline-in-outlook-2460e4a8-16c7-47fc-b204-b1549275aac9"
+            },
+            {
+              "name": "Open Outlook in Safe Mode",
+              "description": "Outlook safe mode disables all add-ins. If Outlook works in safe mode, an add-in is causing the issue — disable add-ins one at a time to identify which one.",
+              "command": "outlook.exe /safe",
+              "steps": [
+                "Right-click Start → Run (or press Win+R)",
+                "Type: outlook.exe /safe and press Enter",
+                "If Outlook opens normally: File → Options → Add-ins → at bottom, set 'Manage' to COM Add-ins → Go → disable add-ins one at a time, restarting between each, until you find the culprit"
+              ],
+              "source": "https://support.microsoft.com/en-au/office/open-outlook-in-safe-mode-f394c2ee-b2af-e97a-64ee-35cd24414811"
+            }
+          ]
+        },
+        {
+          "name": "Excel",
+          "description": "Microsoft Excel troubleshooting.",
+          "children": [
+            {
+              "name": "Excel Not Responding on Open",
+              "description": "Excel hangs, freezes, or crashes when opening files. Microsoft's recommended sequence: launch in safe mode to rule out add-ins, then update Office, then repair the install.",
+              "command": "excel.exe /safe",
+              "steps": [
+                "Run excel.exe /safe (Win+R → type it). If Excel works in safe mode, an add-in is the cause.",
+                "Disable add-ins: File → Options → Add-ins → Manage: COM Add-ins → Go → uncheck all → OK",
+                "Update Office: File → Account → Update Options → Update Now",
+                "Repair Office: Settings → Apps → Installed apps → Microsoft 365 → ⋯ → Modify → Online Repair (data is not touched)"
+              ],
+              "source": "https://support.microsoft.com/en-au/office/excel-not-responding-hangs-freezes-or-stops-working-37e7d3c9-9e84-40bf-a805-4ca6853a1ff4"
+            },
+            {
+              "name": "#REF! Errors After Save",
+              "description": "The #REF! error appears when a formula references a cell that no longer exists (deleted row/column/sheet). Use Excel's Trace Precedents to find what broke; or undo immediately if it just happened.",
+              "steps": [
+                "If you just made the deletion: press Ctrl+Z to undo immediately",
+                "Find the broken reference: click the #REF! cell → Formulas tab → Trace Precedents (shows arrows to the missing source)",
+                "Use Find & Replace (Ctrl+H): Find '#REF!' → Replace with a valid range, e.g. A1:A10",
+                "For pivot tables: refresh after fixing the source data range"
+              ],
+              "source": "https://support.microsoft.com/en-us/office/display-the-relationships-between-formulas-and-cells-a59bef2b-3701-46bf-8ff1-d3518771d507"
+            },
+            {
+              "name": "Recover Unsaved Workbook",
+              "description": "If AutoRecover is enabled, Excel saves versions of your workbook periodically. After a crash or accidental close-without-saving, you can recover the most recent autosave.",
+              "steps": [
+                "Open Excel and create or open any workbook",
+                "Go to File → Info",
+                "Under 'Manage Workbook', look for a file labeled '(when I closed without saving)'",
+                "Click it to open, then click Restore in the yellow bar at the top to overwrite the saved version",
+                "Or: File → Open → 'Recover Unsaved Workbooks' button at the bottom of Recent files"
+              ],
+              "source": "https://support.microsoft.com/en-us/office/recover-an-earlier-version-of-an-office-file-169cb166-e7e2-438e-8f39-9a8927828121"
+            }
+          ]
+        },
+        {
+          "name": "Word",
+          "description": "Microsoft Word troubleshooting.",
+          "children": [
+            {
+              "name": "Open Corrupted Word Document (Open and Repair)",
+              "description": "Word's built-in Open and Repair recovers text from a corrupted document. Often successful when 'The file is corrupt and cannot be opened' appears.",
+              "steps": [
+                "Open Word → File → Open → Browse (do NOT use the Recent list)",
+                "Navigate to the folder containing the corrupt document",
+                "Click the file once to select it",
+                "Click the arrow next to the Open button → 'Open and Repair'"
+              ],
+              "source": "https://support.microsoft.com/en-us/office/open-a-document-after-a-file-corruption-error-47df9d48-2165-4411-a699-1786ac734bc3"
+            },
+            {
+              "name": "Reset Normal.dotm Template",
+              "description": "Normal.dotm is Word's default template — it loads on every launch. If Word starts slow, opens with weird formatting, or crashes on launch, the template may be corrupted. Renaming forces Word to create a fresh default template.",
+              "command": "ren \"%appdata%\\Microsoft\\Templates\\Normal.dotm\" Normal.dotm.old",
+              "steps": [
+                "Close all Word windows",
+                "Press Win+R → type: %appdata%\\Microsoft\\Templates → Enter",
+                "Right-click Normal.dotm → Rename → change to Normal.dotm.old",
+                "Open Word — it auto-creates a new Normal.dotm with all defaults"
+              ],
+              "warning": "Any custom styles, macros, or AutoText you added to Normal.dotm will be lost. The .old file remains as a backup.",
+              "source": "https://support.microsoft.com/en-us/office/change-the-normal-template-normal-dotm-06de294b-d216-47f6-ab77-ccb5166f98ea"
+            }
+          ]
+        },
+        {
+          "name": "Activation & License",
+          "description": "Office activation and product key issues.",
+          "children": [
+            {
+              "name": "Office Activation Error 0x80070005",
+              "description": "Activation fails with 'Access denied' / 0x80070005. Usually caused by running as a non-admin user, antivirus blocking activation, or a previous failed activation leaving stale tokens. Microsoft's recommended fix is to run Office as Administrator and ensure your time/date are correct.",
+              "errorCode": "0x80070005",
+              "steps": [
+                "Verify date and time are correct: Settings → Time & language → Date & time → 'Set time automatically' = On",
+                "Close all Office apps",
+                "Right-click any Office app shortcut (e.g. Word) → 'Run as administrator'",
+                "Sign in to activate when prompted",
+                "If still failing: run the SaRA (Support and Recovery Assistant) tool from Microsoft to auto-fix activation"
+              ],
+              "source": "https://support.microsoft.com/en-us/office/office-error-code-0x80070005-when-activating-office-7aa7600f-df57-4aef-81d2-25509c66f865"
+            },
+            {
+              "name": "Reset Office Activation (ospp.vbs)",
+              "description": "ospp.vbs is Office's command-line activation tool. Use it to view license status, remove an existing product key, and force re-activation when an old key is stuck or a license needs to be rebound.",
+              "command": "cscript \"C:\\Program Files\\Microsoft Office\\Office16\\ospp.vbs\" /dstatus\ncscript \"C:\\Program Files\\Microsoft Office\\Office16\\ospp.vbs\" /unpkey:XXXXX",
+              "steps": [
+                "Open Command Prompt as Administrator",
+                "Navigate to the Office folder: cd \"C:\\Program Files\\Microsoft Office\\Office16\" (or Program Files (x86) for 32-bit Office on 64-bit Windows)",
+                "View current license: cscript ospp.vbs /dstatus — note the last 5 chars of the partial product key",
+                "Remove the key: cscript ospp.vbs /unpkey:XXXXX (replace XXXXX with those 5 chars)",
+                "Activate fresh: cscript ospp.vbs /inpkey:YOUR-NEW-KEY then cscript ospp.vbs /act"
+              ],
+              "warning": "Removing a key on a volume-licensed install can disable Office until you reactivate. Use only when troubleshooting a known activation issue.",
+              "source": "https://learn.microsoft.com/en-us/deployoffice/vlactivation/tools-to-manage-volume-activation-of-office"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Email Issues",
+      "description": "Email problems across providers (Gmail, Outlook.com, iCloud) and clients (Apple Mail, Thunderbird), including server settings, authentication, deliverability, and bounces.",
+      "children": [
+        {
+          "name": "SMTP / IMAP / POP3 Basics",
+          "description": "Standard email protocol port numbers — required to configure any email client manually.",
+          "children": [
+            {
+              "name": "SMTP Ports (25 / 465 / 587)",
+              "description": "SMTP (outgoing mail) uses three ports depending on use case. Port 587 with STARTTLS is the modern recommended port for client-to-server email submission. Port 465 is legacy implicit SSL/TLS, still supported by most providers. Port 25 is for server-to-server relay and is widely blocked by ISPs.",
+              "command": "Port 587 — Submission (STARTTLS) — RECOMMENDED for clients\nPort 465 — Legacy SMTPS (implicit TLS) — still works\nPort 25  — Server-to-server relay — usually blocked by ISPs\nPort 2525 — Alternative when others are blocked",
+              "source": "https://www.mailgun.com/blog/email/which-smtp-port-understanding-ports-25-465-587/"
+            },
+            {
+              "name": "IMAP Ports (143 / 993)",
+              "description": "IMAP (incoming mail, keeps messages on the server) uses port 993 for SSL/TLS (recommended) or port 143 for plain/STARTTLS. Use 993 with SSL for any client setup today.",
+              "command": "Port 993 — IMAP over SSL/TLS — RECOMMENDED\nPort 143 — IMAP plain (often upgraded via STARTTLS)",
+              "source": "https://learn.microsoft.com/en-us/answers/questions/2608146/incoming-mail-server-(pop3)-and-outgoing-mail-serv"
+            },
+            {
+              "name": "POP3 Ports (110 / 995)",
+              "description": "POP3 (incoming mail, downloads then removes from server) uses port 995 for SSL/TLS (recommended) or port 110 for plain. Most email accounts should use IMAP instead — POP3 is only useful for single-device, offline-first setups.",
+              "command": "Port 995 — POP3 over SSL/TLS — RECOMMENDED\nPort 110 — POP3 plain",
+              "source": "https://learn.microsoft.com/en-us/answers/questions/2608146/incoming-mail-server-(pop3)-and-outgoing-mail-serv"
+            }
+          ]
+        },
+        {
+          "name": "Gmail",
+          "description": "Google Gmail account, sync, and password issues.",
+          "children": [
+            {
+              "name": "Gmail App-Specific Passwords",
+              "description": "App passwords are 16-character codes for connecting older apps (like classic Outlook or Thunderbird) to a Gmail account that has 2-Step Verification turned on. Google recommends 'Sign in with Google' instead when available, but app passwords still work.",
+              "steps": [
+                "Turn on 2-Step Verification first: myaccount.google.com → Security → 2-Step Verification",
+                "Visit: myaccount.google.com/apppasswords",
+                "Enter a name like 'Outlook' → click Create",
+                "Copy the 16-character password shown (no spaces needed)",
+                "Paste it into your mail client's password field instead of your normal Google password"
+              ],
+              "warning": "Treat app passwords like full account passwords. Revoke any you don't recognize on the App passwords page.",
+              "source": "https://support.google.com/mail/answer/185833"
+            },
+            {
+              "name": "Gmail IMAP / SMTP Server Settings",
+              "description": "Standard server settings for connecting any email client to Gmail. Requires IMAP to be enabled in Gmail settings (it is by default) and an app password if 2-Step Verification is on.",
+              "command": "Incoming (IMAP)\n  Server: imap.gmail.com\n  Port: 993\n  Security: SSL/TLS\n\nOutgoing (SMTP)\n  Server: smtp.gmail.com\n  Port: 465 (SSL) or 587 (STARTTLS)\n  Auth: Required\n  Username: full Gmail address\n  Password: app password (if 2SV on) or account password",
+              "source": "https://support.google.com/mail/answer/78892"
+            },
+            {
+              "name": "Less Secure App Access (Removed)",
+              "description": "Google removed the 'Less secure app access' option in 2022. Apps that used it (older Thunderbird, classic Outlook with basic auth) must now use either 'Sign in with Google' (OAuth) or an app-specific password. There is no way to re-enable LSA.",
+              "warning": "If a client says 'authentication failed' since 2022 and there's no LSA setting visible anymore, switch to app passwords or update the client to a version that supports OAuth.",
+              "source": "https://support.google.com/accounts/thread/167084278/how-can-i-turn-off-less-secure-apps"
+            },
+            {
+              "name": "Recover Deleted Gmail (30-Day Window)",
+              "description": "Deleted Gmail messages stay in Trash for 30 days. After 30 days they are permanently deleted and cannot be recovered. Drafts cannot be recovered from Trash at all.",
+              "steps": [
+                "Open Gmail on the web",
+                "In the left sidebar, click More to expand → Trash (or Bin)",
+                "Check the box next to messages you want to recover",
+                "Click 'Move to' (folder icon) → choose Inbox or another label",
+                "Use search if you have many trashed messages: in:trash from:[sender]"
+              ],
+              "warning": "Past the 30-day window, only G Suite/Workspace admins (not personal Gmail users) can attempt server-side recovery — and only within 25 days of permanent deletion.",
+              "source": "https://support.google.com/mail/answer/7401"
+            }
+          ]
+        },
+        {
+          "name": "Outlook.com / Hotmail",
+          "description": "Microsoft Outlook.com (webmail) account issues.",
+          "children": [
+            {
+              "name": "Outlook.com IMAP / SMTP Settings",
+              "description": "Standard server settings for adding an Outlook.com / Hotmail / Live.com account to any third-party email client.",
+              "command": "Incoming (IMAP)\n  Server: outlook.office365.com\n  Port: 993\n  Security: SSL/TLS\n\nOutgoing (SMTP)\n  Server: smtp-mail.outlook.com\n  Port: 587\n  Security: STARTTLS\n  Auth: Required\n  Username: full Outlook.com address\n  Password: account password (or app password if 2SV)",
+              "warning": "Microsoft has been migrating Outlook.com to require OAuth for third-party clients. Older clients using basic auth may fail and require an app password generated at account.live.com.",
+              "source": "https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040"
+            },
+            {
+              "name": "Outlook.com Sign-In Redirect Loop",
+              "description": "After entering credentials, outlook.com redirects to the marketing page instead of the inbox. Caused by stale browser cache, cookies, or a Microsoft account state issue.",
+              "steps": [
+                "Open the site in a private/incognito window → test login",
+                "Clear all cookies and site data for outlook.com and live.com",
+                "Sign in via account.microsoft.com first, then click 'Outlook' from the apps menu",
+                "Try a different browser to confirm the issue is browser-side",
+                "If persistent: sign in to account.live.com, check security alerts, complete any required identity verification"
+              ],
+              "source": "https://techcommunity.microsoft.com/discussions/outlookgeneral/logging-into-outlook-com/4383559"
+            }
+          ]
+        },
+        {
+          "name": "Apple Mail",
+          "description": "Apple Mail (Mail.app) on macOS and iOS troubleshooting.",
+          "children": [
+            {
+              "name": "Stuck in Outbox / Won't Send",
+              "description": "Mail message stays in Outbox with a clock or warning icon. Common causes: no internet, wrong SMTP server, or attachment over the size limit. Apple's recommended sequence: check connection, retry, then re-verify the outgoing server config.",
+              "steps": [
+                "Open Mail → check the Outbox in the sidebar — if a message is there, the send failed",
+                "Verify you have internet (load a webpage in Safari)",
+                "Mail menu → Mailbox → 'Send' or 'Take All Accounts Online'",
+                "Mail menu → Settings → Accounts → select account → Server Settings → click 'Edit SMTP Server List' → verify Host Name, port (587), and authentication",
+                "On iPhone/iPad: Settings → Mail → Accounts → tap the account → tap SMTP under Outgoing Mail Server"
+              ],
+              "source": "https://support.apple.com/en-us/102556"
+            },
+            {
+              "name": "Rebuild Mailbox (Apple Mail)",
+              "description": "Rebuilding refreshes the local copy of a mailbox by erasing the cache and re-downloading from the server. Use when messages appear corrupted, are missing, or the mailbox shows the wrong message count.",
+              "steps": [
+                "Open Mail",
+                "In the sidebar, click the mailbox/folder you want to rebuild",
+                "Menu bar → Mailbox → Rebuild",
+                "Wait for the process to finish — large mailboxes can take 30+ minutes"
+              ],
+              "warning": "Only works for IMAP/Exchange accounts where mail is on the server. POP3 accounts will lose any messages that were only stored locally.",
+              "source": "https://support.apple.com/en-gb/guide/mail/welcome/mac"
+            },
+            {
+              "name": "Apple Mail Search Returns No Results",
+              "description": "If Mail's search returns no results when you know the message exists, the Spotlight index for Mail is likely corrupted. Rebuild the Spotlight index for your home folder to fix it.",
+              "command": "sudo mdutil -E /",
+              "steps": [
+                "System Settings → Spotlight (or Siri & Spotlight) → Search Privacy",
+                "Drag your home folder (or Macintosh HD) into the list — this removes it from indexing",
+                "Wait 10 seconds, then remove it from the list using the – button — this triggers re-indexing",
+                "Or via Terminal (faster): sudo mdutil -E /",
+                "Wait 1–2 hours for full re-index, then try Mail search again"
+              ],
+              "source": "https://support.apple.com/en-us/102321"
+            }
+          ]
+        },
+        {
+          "name": "Thunderbird",
+          "description": "Mozilla Thunderbird email client troubleshooting.",
+          "children": [
+            {
+              "name": "Compact Folders (Reclaim Disk Space)",
+              "description": "Thunderbird marks deleted messages but doesn't immediately remove them from disk. Compacting permanently removes them and shrinks the .msf files. Required periodically — large uncompacted folders can become corrupted.",
+              "steps": [
+                "Right-click any folder in the folder list → 'Compact'",
+                "To compact all folders: File menu → 'Compact Folders' (or right-click the account name → 'Compact Folders')",
+                "Trust the 'Compact Folders' prompt when it appears — don't dismiss it repeatedly"
+              ],
+              "warning": "Do not interrupt compaction. Power loss or force-quit during compaction can corrupt folders. Back up the profile first if compacting a very large folder.",
+              "source": "https://support.mozilla.org/en-US/kb/compacting-folders"
+            },
+            {
+              "name": "Reset Thunderbird Profile",
+              "description": "Thunderbird profiles contain messages, account settings, address book, and add-ons. Creating a new profile resets the client to factory state. The old profile is preserved so you can recover data later.",
+              "steps": [
+                "Quit Thunderbird completely",
+                "Open the Profile Manager: Win+R → type: thunderbird.exe -P → Enter (Mac: /Applications/Thunderbird.app/Contents/MacOS/thunderbird -P from Terminal)",
+                "Uncheck 'Use the selected profile without asking at startup'",
+                "Click 'Create Profile...' → follow the wizard → choose 'default-new' or similar name",
+                "Launch with the new profile — reconfigure accounts from scratch",
+                "Old profile remains in %appdata%\\Thunderbird\\Profiles\\ (Windows) or ~/Library/Thunderbird/Profiles/ (Mac) for recovery"
+              ],
+              "source": "https://support.mozilla.org/en-US/kb/profile-manager-create-and-remove-thunderbird-profiles"
+            }
+          ]
+        },
+        {
+          "name": "iCloud Mail",
+          "description": "Apple iCloud Mail account issues.",
+          "children": [
+            {
+              "name": "iCloud App-Specific Password",
+              "description": "To use iCloud Mail in any non-Apple email client (Thunderbird, Outlook, etc.), generate an app-specific password from account.apple.com. Required even on Apple devices when third-party apps need iCloud access.",
+              "steps": [
+                "Sign in at account.apple.com",
+                "In the Sign-In and Security section, select 'App-Specific Passwords'",
+                "Click '+' or 'Generate an app-specific password'",
+                "Enter a label like 'Thunderbird' → Create",
+                "Copy the password and paste it as the password in your email client (paired with your full @icloud.com address as username)"
+              ],
+              "warning": "Requires two-factor authentication on your Apple Account. App-specific passwords can be revoked individually from the same page.",
+              "source": "https://support.apple.com/en-us/102654"
+            },
+            {
+              "name": "iCloud Mail Stops Receiving on iPhone",
+              "description": "iPhone shows old mail but doesn't receive new messages. Common causes: Mail Days to Sync set too low, the iCloud Mail toggle is off, or the iCloud account hit its storage limit (sender will see 'mailbox full' bounce).",
+              "steps": [
+                "Check iCloud storage: Settings → [your name] → iCloud → Manage Account Storage — if full, free space or upgrade",
+                "Verify Mail is enabled for iCloud: Settings → [your name] → iCloud → See All → Mail → toggle on",
+                "Sign out and back in to iCloud Mail: Settings → Mail → Accounts → iCloud → tap account → Delete → re-add",
+                "Restart iPhone",
+                "Try iCloud Mail at icloud.com in a browser to verify the messages are at least arriving at the server"
+              ],
+              "source": "https://discussions.apple.com/thread/252941510"
+            }
+          ]
+        },
+        {
+          "name": "Deliverability & Bounces",
+          "description": "Why emails bounce, go to spam, or fail authentication checks.",
+          "children": [
+            {
+              "name": "550 Mailbox Unavailable",
+              "description": "A 550 SMTP bounce with 'mailbox unavailable' means the recipient's mail server rejected the message. Most common cause: the address doesn't exist (typo) or was disabled. Other causes: recipient over quota, sender blacklisted, content filtering.",
+              "errorCode": "SMTP 550",
+              "steps": [
+                "Verify the recipient address character-by-character — a typo is the most common cause",
+                "Check if you're sending from a blacklisted IP (use mxtoolbox.com or similar)",
+                "If the bounce mentions 'quota' or 'over quota', the recipient mailbox is full — they need to delete messages",
+                "If sending in bulk: check SPF/DKIM/DMARC alignment (see related node)",
+                "If sending from a personal account: try from a different account to isolate the issue"
+              ],
+              "source": "https://askleo.com/mailbox-unavailable-error/"
+            },
+            {
+              "name": "SPF / DKIM / DMARC Quick Check",
+              "description": "Modern email providers (Gmail, Outlook) require sending domains to publish SPF, DKIM, and DMARC DNS records or messages risk being marked spam or rejected. Use a free checker to verify your domain's records.",
+              "steps": [
+                "Visit a free DMARC checker like easydmarc.com/tools/dmarc-lookup or mxtoolbox.com/dmarc.aspx",
+                "Enter your sending domain (e.g. example.com)",
+                "Verify the SPF record exists and includes all your sending services (Google Workspace, Microsoft 365, mailgun, etc.)",
+                "Verify a DKIM selector record exists for each sender (e.g. google._domainkey.example.com)",
+                "Verify _dmarc.example.com publishes a DMARC policy (p=none for monitoring, p=quarantine or p=reject for enforcement)"
+              ],
+              "source": "https://easydmarc.com/tools/dmarc-lookup"
+            },
+            {
+              "name": "Email Going to Spam",
+              "description": "Your legitimate email gets filtered to recipients' spam folders. Causes are almost always sender-side: missing authentication (SPF/DKIM/DMARC), low sender reputation, spammy content, or sending from a shared IP with a bad neighbor.",
+              "steps": [
+                "Verify SPF, DKIM, and DMARC are configured for your sending domain (see related node)",
+                "Avoid spam-trigger words in subject lines (FREE!, WINNER, $$$, all-caps)",
+                "Check your sender reputation at senderscore.org or talosintelligence.com",
+                "If sending from your own server: warm up the IP slowly over weeks — don't blast 10,000 emails on day one",
+                "Ask recipients to add your address to their contacts (whitelists your sender)",
+                "If using a marketing platform: check your bounce rate and unsubscribe rate are below industry averages"
+              ],
+              "source": "https://www.mailgun.com/blog/deliverability/improve-sender-reputation/"
             }
           ]
         }

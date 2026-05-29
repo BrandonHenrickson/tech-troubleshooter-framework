@@ -15,6 +15,7 @@ Edit `arf.json` following the existing structure. Each node supports:
 - `warning` — optional yellow warning box
 - `errorCode` — optional red badge
 - `steps` — optional array of strings, rendered as a numbered list
+- `source` — optional URL (http/https only) shown as a clickable "Source" link in the panel
 - `children` — optional array of child nodes
 
 ## Local Development

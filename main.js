@@ -9,13 +9,34 @@ const COLOR = {
   nodeLeaf: cssVar('--node-leaf'),
   nodeWindows: cssVar('--node-windows'),
   nodeMac: cssVar('--node-mac'),
+  nodeBrowser: cssVar('--node-browser'),
+  nodeOffice: cssVar('--node-office'),
+  nodeEmail: cssVar('--node-email'),
   textPrimary: cssVar('--text-primary'),
+};
+
+const BRANCH_COLOR = {
+  'Windows': 'nodeWindows',
+  'Mac': 'nodeMac',
+  'Browser Issues': 'nodeBrowser',
+  'Microsoft Office': 'nodeOffice',
+  'Email Issues': 'nodeEmail',
 };
 
 const truncate = (s) => (s && s.length > MAX_LABEL ? s.slice(0, MAX_LABEL - 1) + '…' : s);
 const escapeHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[c]));
+
+// Only allow http(s) URLs into href attributes — prevents javascript: / data: injection
+// if a future arf.json author drops in something weird.
+const safeHref = (s) => {
+  const str = String(s ?? '').trim();
+  return /^https?:\/\//i.test(str) ? escapeHTML(str) : '';
+};
+const displayHostname = (s) => {
+  try { return new URL(s).hostname.replace(/^www\./, ''); } catch (_) { return s; }
+};
 
 let root;
 let nodeIdCounter = 0;
@@ -153,9 +174,8 @@ function circleFill(d) {
   if (d.depth === 0) return COLOR.textPrimary;
   if (d.depth === 1) {
     // Top-level branches tinted by their accent.
-    const top = topLevelName(d);
-    if (top === 'Windows') return COLOR.nodeWindows;
-    if (top === 'Mac') return COLOR.nodeMac;
+    const key = BRANCH_COLOR[topLevelName(d)];
+    if (key) return COLOR[key];
   }
   if (hasKids(d)) return COLOR.nodeDefault;
   return '#FFFFFF';
@@ -195,9 +215,8 @@ function openPanel(d) {
   panel.classList.add('open');
 
   const branch = topLevelName(d);
-  if (branch === 'Windows') panel.style.borderLeftColor = COLOR.nodeWindows;
-  else if (branch === 'Mac') panel.style.borderLeftColor = COLOR.nodeMac;
-  else panel.style.borderLeftColor = cssVar('--accent');
+  const key = BRANCH_COLOR[branch];
+  panel.style.borderLeftColor = key ? COLOR[key] : cssVar('--accent');
 
   renderPanel(d);
 }
@@ -245,6 +264,14 @@ function renderPanel(d) {
 
   if (data.warning) {
     html += `<div class="warning-box">${escapeHTML(data.warning)}</div>`;
+  }
+
+  if (data.source) {
+    const href = safeHref(data.source);
+    if (href) {
+      const host = escapeHTML(displayHostname(data.source));
+      html += `<a class="source-link" href="${href}" target="_blank" rel="noopener noreferrer"><span class="label">Source</span> ${host}</a>`;
+    }
   }
 
   const kids = d.children || d._children;

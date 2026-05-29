@@ -9,6 +9,9 @@
   --node-leaf:       #0EA5E9;
   --node-windows:    #2563EB;
   --node-mac:        #7C3AED;
+  --node-browser:    #EC4899;
+  --node-office:     #DC2626;
+  --node-email:      #0891B2;
   --node-hover:      #F59E0B;
   --node-search:     #F59E0B;
   --panel-bg:        #FFFFFF;
@@ -312,6 +315,38 @@ header .title .emoji { font-size: 20px; }
   margin: 0 0 18px 0;
 }
 .warning-box::before { content: "⚠️ "; margin-right: 4px; }
+
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 18px 0;
+  padding: 8px 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-all;
+  transition: background 150ms, border-color 150ms;
+}
+.source-link:hover {
+  background: #fff;
+  border-color: var(--accent);
+}
+.source-link::before {
+  content: "🔗";
+  flex-shrink: 0;
+}
+.source-link .label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  margin-right: 4px;
+}
 
 .children-list {
   margin-top: 20px;
